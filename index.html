@@ -1,73 +1,279 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <title>위너스 - 작은 거래도 즐거운 경매</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="config.js"></script>
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    body{font-family:Helvetica,Arial;background:#f0f7ff;margin:0;color:#0f172a}
-    .top{display:flex;justify-content:space-between;align-items:center;padding:18px 36px;background:white;box-shadow:0 2px 8px rgba(2,6,23,.06)}
-    .brand{font-size:24px;color:#0ea5e9;font-weight:700}
-    .authBtns button{margin-left:10px;padding:8px 12px;border-radius:6px;border:1px solid #e6eefb;background:white;cursor:pointer}
-    .hero{max-width:1100px;margin:40px auto;padding:40px;background:linear-gradient(135deg,#06b6d4 0%, #60a5fa 100%);color:white;border-radius:16px;display:flex;gap:30px;align-items:center}
-    .hero .left{flex:1}
-    .hero h1{font-size:46px;margin:0 0 8px}
-    .hero p{font-size:18px;margin:10px 0 20px;opacity:.95}
-    .cta{display:inline-block;background:white;color:#0ea5e9;padding:12px 18px;border-radius:12px;font-weight:700;text-decoration:none}
-    .visual{width:360px;height:220px;border-radius:12px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center}
-    .visual img{width:140px;height:140px}
-  </style>
-</head>
-<body>
-  <header class="top">
-    <div class="brand">위너스 <small style="font-weight:400;margin-left:10px;color:#64748b;font-size:13px">작은 거래도 즐거운 경매</small></div>
-    <div class="authBtns" id="authBtns">
-      <!-- 로그인/회원가입 버튼 혹은 사용자명/로그아웃이 표시됩니다. -->
-    </div>
-  </header>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WeNers — 경매 플랫폼</title>
 
-  <main>
-    <section class="hero" role="region" aria-label="히어로">
-      <div class="left">
-        <div style="display:inline-block;background:rgba(255,255,255,.12);padding:8px 14px;border-radius:999px;font-weight:600;margin-bottom:14px">🔥 오늘 등록된 신규상품이 <strong>3개</strong> 있습니다.</div>
-        <h1>작은 거래도 즐거운 경매<br/>위너스에서 팔래? 말래? 살래? 말래?</h1>
-        <p>간단한 경매 플랫폼 데모입니다. 회원가입/로그인 후 상품 등록과 입찰을 체험해보세요.</p>
-        <a class="cta" href="weners_with_bids_realtime_auth.html">구경하러 가기</a>
-      </div>
-      <div class="visual"><img src="https://placehold.co/140x140/fff/000?text=WeN" alt="visual"/></div>
-    </section>
-  </main>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tailwindcss@2/dist/tailwind.min.css">
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const supabase = supabase.createClient(
+  "https://wfgqdswcdwdvfaqwejmd.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmZ3Fkc3djZHdkdmZhcXdlam1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4MDc2NjcsImV4cCI6MjA4MDM4MzY2N30.Jb9nqalTEPp3Grwy3lnLczl6cE7gTSsK4Ol3hXGdl1Q"
+);
+</script>
+
+<style>
+html,body{margin:0;padding:0;font-family:Pretendard, sans-serif;}
+.header-fixed{position:fixed;top:0;left:0;width:100%;background:white;z-index:50;box-shadow:0 2px 6px rgba(0,0,0,.06);}
+.nav-wrap{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;}
+.nav-left span{font-size:22px;font-weight:700;color:#2b8ded;}
+.nav-right button{margin-left:10px;padding:6px 12px;border-radius:6px;border:1px solid #ddd;background:white;}
+</style>
+</head>
+
+<body>
+
+<!-- 🔥 Header — 로그인 상태(T1) / 미로그인 상태 자동 전환 -->
+<header class="header-fixed">
+  <div class="nav-wrap">
+    <div class="nav-left">
+      <span>WeNers</span>
+    </div>
+    <div id="navAuth" class="nav-right">
+      <!-- JS가 여기를 로그인 여부에 따라 채운다 -->
+    </div>
+  </div>
+</header>
 
 <script>
-if(!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY){
-  console.warn('config.js가 설정되지 않았습니다. Supabase 연동을 위해 config.js를 수정하세요.');
-}
-
-const supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-
-async function renderAuth(){
+// ─────────────────────────────────────────────────────────
+// 세션 감지 → navAuth UI 변경 (T1 방식 적용)
+// ─────────────────────────────────────────────────────────
+async function renderHeaderAuth(){
   const { data } = await supabase.auth.getSession();
-  const session = data?.session || null;
-  const authBtns = document.getElementById('authBtns');
+  const user = data?.session?.user ?? null;
+  const box = document.getElementById("navAuth");
 
-  // 기존 로컬 데모 세션(로컬스토리지)을 무조건 사용하지 않음.
-  // Supabase 세션이 있으면 그것을 우선으로 사용하고, 없으면 '로그인/회원가입' 버튼을 보임.
-  if(session){
-    const user = session.user;
-    authBtns.innerHTML = `<span style="margin-right:12px;font-weight:600">${user.email}</span>
-      <button id="logoutBtn" style="background:#ef4444;color:white;border:none;padding:8px 12px;border-radius:8px">로그아웃</button>`;
-    document.getElementById('logoutBtn').addEventListener('click', async ()=>{
-      await supabase.auth.signOut();
-      location.reload();
-    });
+  if(!user){
+    box.innerHTML = `
+      <button onclick="location.href='auth_login.html'">로그인</button>
+      <button onclick="location.href='auth_signup.html'">회원가입</button>
+    `;
   } else {
-    authBtns.innerHTML = `<button onclick="location.href='auth_login.html'">로그인</button>
-                          <button onclick="location.href='auth_signup.html'">회원가입</button>`;
+    box.innerHTML = `
+      <span style="font-weight:600;margin-right:8px;color:#2b8ded">${user.email}</span>
+      <button onclick="logout()">로그아웃</button>
+    `;
   }
 }
-renderAuth();
+async function logout(){
+  await supabase.auth.signOut();
+  location.reload();
+}
+renderHeaderAuth();
+</script>
+
+<!-- ↓↓↓——————————————— 이어서 Part 2 요청하면 바로 제공 ———————————————↓↓↓ -->
+  <!-- ================= Part 2/3 (Hero + 중간 콘텐츠) ================= -->
+<!-- Hero / 상단 배너 -->
+<main style="padding-top:88px;">
+  <section id="hero" style="padding:60px 20px; background:linear-gradient(135deg,#06b6d4 0%,#60a5fa 100%); color:#fff;">
+    <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:40px;">
+      <div style="flex:1">
+        <div style="background:rgba(255,255,255,0.12);display:inline-block;padding:6px 14px;border-radius:999px;font-weight:700;margin-bottom:12px">
+          🔥 오늘 등록된 신규상품이 <strong id="newCount">0</strong>개 있습니다.
+        </div>
+        <h1 style="font-size:44px;line-height:1.05;margin:12px 0 12px;font-weight:800">
+          작은 거래도 즐거운 경험으로<br/>
+          위너스에서 <strong style="color:#ffe600">팔래? 말래?</strong> 살래? 말래?
+        </h1>
+        <p style="opacity:.95;font-size:18px;margin-bottom:18px">회원가입/로그인 후 상품 등록과 실시간 입찰 기능을 체험해보세요.</p>
+        <div>
+          <a class="cta" href="weners_with_bids_realtime_auth.html" style="text-decoration:none;padding:12px 18px;border-radius:12px;background:#fff;color:#0ea5e9;font-weight:800">구경하러 가기</a>
+          <button onclick="location.href='create_with_image_upload_auth.html'" style="margin-left:12px;padding:12px 18px;border-radius:12px;border:none;background:rgba(255,255,255,0.12);color:#fff;font-weight:700">상품 등록</button>
+        </div>
+      </div>
+      <div style="width:360px;height:220px;border-radius:12px;background:rgba(255,255,255,0.08);display:flex;align-items:center;justify-content:center">
+        <img src="https://placehold.co/140x140/fff/000?text=WeN" alt="visual" style="width:140px;height:140px;border-radius:10px">
+      </div>
+    </div>
+  </section>
+
+  <!-- 쇼트컷 / 주요 섹션 -->
+  <section style="max-width:1100px;margin:30px auto;padding:0 20px;">
+    <div style="display:flex;gap:20px;">
+      <div style="flex:2;background:white;padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,.04)">
+        <h3 style="margin:0 0 12px">최근 상품</h3>
+        <div id="productList">
+          <!-- JS로 동적으로 채워짐 -->
+          <p style="color:#9ca3af">상품을 불러오는 중입니다...</p>
+        </div>
+      </div>
+
+      <aside style="flex:1;">
+        <div style="background:white;padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,.04);margin-bottom:16px">
+          <h4 style="margin:0 0 8px">내 계정</h4>
+          <div id="miniAuth">
+            <!-- 로그인 상태에 따라 채움 -->
+            <p style="color:#6b7280">로딩중...</p>
+          </div>
+        </div>
+
+        <div style="background:white;padding:14px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,.04)">
+          <h4 style="margin:0 0 8px">공지</h4>
+          <p style="color:#6b7280;margin:0">새로운 기능: 이미지 업로드, 실시간 입찰 테스트 중</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+<!-- ================= Part 3/3 (Products, Scripts, Footer) ================= -->
+  <footer style="max-width:1100px;margin:40px auto 80px;padding:0 20px;color:#64748b;font-size:14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:18px 0;border-top:1px solid #e6eefb">
+      <div>© WeNers</div>
+      <div>문의: support@example.com</div>
+    </div>
+  </footer>
+</main>
+
+<script>
+// -----------------------------
+// 안전하게 새 supabase 클라이언트 생성 (자동 세션 저장 X)
+// -----------------------------
+const SUPABASE_URL = "https://wfgqdswcdwdvfaqwejmd.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmZ3Fkc3djZHdkdmZhcXdlam1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4MDc2NjcsImV4cCI6MjA4MDM4MzY2N30.Jb9nqalTEPp3Grwy3lnLczl6cE7gTSsK4Ol3hXGdl1Q";
+
+// SB 변수는 이 파일 내에서 모든 supabase 작동을 담당
+const SB = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false }
+});
+
+// 이제 SB를 통해 사용자 상태/데이터를 관리
+
+// 유틸: HTML 이스케이프
+function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// -----------------------------
+// 헤더/사이드/미니 auth 재렌더링 (SB 사용)
+// -----------------------------
+async function refreshAllAuth(){
+  const { data } = await SB.auth.getSession();
+  const user = data?.session?.user ?? null;
+
+  // header nav (override previous render if 필요)
+  const box = document.getElementById("navAuth");
+  if(box){
+    if(!user){
+      box.innerHTML = `<button onclick="location.href='auth_login.html'">로그인</button>
+                       <button onclick="location.href='auth_signup.html'">회원가입</button>`;
+    } else {
+      box.innerHTML = `<span style="font-weight:600;margin-right:8px;color:#2b8ded">${esc(user.email)}</span>
+                       <button onclick="doLogout()">로그아웃</button>`;
+    }
+  }
+
+  // mini auth
+  const mini = document.getElementById("miniAuth");
+  if(mini){
+    if(!user){
+      mini.innerHTML = `<div><a href="auth_login.html">로그인</a> / <a href="auth_signup.html">회원가입</a></div>`;
+    } else {
+      mini.innerHTML = `<div style="font-weight:600">${esc(user.email)}</div>
+                        <div style="margin-top:8px"><button onclick="doLogout()">로그아웃</button></div>`;
+    }
+  }
+}
+
+// 실제 로그아웃 (세션 삭제 + 새로고침)
+async function doLogout(){
+  try{
+    await SB.auth.signOut();
+  }catch(e){ console.warn('signOut err', e); }
+  // 확실한 초기화: localStorage/sessionStorage clear (안전)
+  try{ localStorage.clear(); sessionStorage.clear(); }catch(e){}
+  location.reload();
+}
+
+// -----------------------------
+// 상품 불러오기 & 실시간 구독
+// -----------------------------
+async function loadProducts(){
+  const list = document.getElementById("productList");
+  list.innerHTML = '<p style="color:#9ca3af">상품을 불러오는 중입니다...</p>';
+  try{
+    const { data, error } = await SB.from('products').select('*').order('created_at',{ascending:false}).limit(20);
+    if(error){
+      console.error('products select err', error);
+      list.innerHTML = `<p style="color:#ef4444">상품 불러오기 실패: ${esc(error.message)}</p>`;
+      return;
+    }
+    if(!data || data.length===0){
+      list.innerHTML = '<p style="color:#6b7280">등록된 상품이 없습니다.</p>';
+      document.getElementById('newCount').textContent = 0;
+      return;
+    }
+
+    document.getElementById('newCount').textContent = data.length;
+    list.innerHTML = '';
+    data.forEach(p=>{
+      const html = `
+        <div style="border-bottom:1px solid #eef2ff;padding:12px 0;display:flex;gap:12px;align-items:flex-start">
+          <div style="width:140px;height:100px;background:#f8fafc;border-radius:8px;overflow:hidden;display:flex;align-items:center;justify-content:center">
+            ${p.images ? `<img src="${esc(p.images)}" style="width:100%;height:100%;object-fit:cover">` : `<div style="color:#9ca3af">이미지 없음</div>`}
+          </div>
+          <div style="flex:1">
+            <h4 style="margin:0 0 6px">${esc(p.title)}</h4>
+            <div style="color:#6b7280;margin-bottom:8px">${esc(p.description||'')}</div>
+            <div style="font-weight:700">시작가: ${esc(p.price_start)}원 ${p.price_end ? ` / 즉시구매: ${esc(p.price_end)}원` : ''}</div>
+            <div style="margin-top:10px">
+              <input id="bid_${p.id}" type="number" placeholder="입찰가" style="padding:8px;border:1px solid #e6eefb;border-radius:6px;width:140px">
+              <button onclick="bidProduct(${p.id})" style="margin-left:8px;padding:8px 12px;border-radius:6px;background:#2b8ded;color:#fff;border:none">입찰</button>
+            </div>
+          </div>
+        </div>`;
+      list.insertAdjacentHTML('beforeend', html);
+    });
+  }catch(err){
+    console.error('loadProducts unexpected', err);
+    list.innerHTML = `<p style="color:#ef4444">상품 불러오기 중 오류가 발생했습니다.</p>`;
+  }
+}
+
+// 입찰 함수
+async function bidProduct(pid){
+  const el = document.getElementById(`bid_${pid}`);
+  const price = Number(el.value);
+  if(!price || price <= 0) return alert('유효한 입찰가를 입력하세요.');
+
+  const { data: userData } = await SB.auth.getUser();
+  const user = userData?.user;
+  if(!user) return alert('로그인 후 이용하세요.');
+
+  try{
+    const { error } = await SB.from('bids').insert([{
+      product_id: pid,
+      price,
+      bidder: user.email,
+      created_at: new Date()
+    }]);
+    if(error){ console.error('bid insert err', error); return alert('입찰 실패: '+error.message); }
+    alert('입찰 완료!');
+  }catch(e){ console.error('bid unexpected', e); alert('오류가 발생했습니다.'); }
+}
+
+// 실시간 구독 (bids 테이블 INSERT 감지)
+function subscribeRealtime(){
+  try{
+    SB.channel('public:realtime')
+      .on('postgres_changes', { event: 'INSERT', schema:'public', table:'bids' }, (payload)=>{
+        console.log('realtime bids:', payload);
+        loadProducts(); // 간단히 새로 로드
+      }).subscribe()
+      .then(()=> console.log('subscribed to realtime bids'));
+  }catch(e){ console.warn('subscribe err', e); }
+}
+
+// -----------------------------
+// 초기화: auth 렌더 + 데이터 로드 + 구독
+// -----------------------------
+(async function init(){
+  await refreshAllAuth();
+  await loadProducts();
+  subscribeRealtime();
+})();
 </script>
 </body>
 </html>
+
