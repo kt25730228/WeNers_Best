@@ -1,41 +1,56 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="utf-8" />
-<title>회원가입 | WeNers</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<style>body{font-family:Arial;padding:30px;}form{max-width:420px;margin:auto;background:#fff;padding:20px;border-radius:8px}input{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:1px solid #ccc}button{padding:10px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer}</style>
+<meta charset="UTF-8" />
+<title>회원가입</title>
+<style>
+    body { font-family:sans-serif; background:#f7f9fc; padding:40px; }
+    .wrap{ max-width:450px; margin:auto; background:white; padding:30px; border-radius:12px; box-shadow:0 0 20px rgba(0,0,0,0.08);}
+    input{ width:100%; padding:12px; margin-top:10px; border:1px solid #ddd; border-radius:8px;}
+    button{ width:100%; padding:14px; background:#0064ff; color:white; font-size:17px; border:none; margin-top:18px; border-radius:8px; cursor:pointer;}
+    button:hover{ background:#004bd1;}
+</style>
 </head>
 <body>
-<h2 style="text-align:center">회원가입</h2>
 
-<form id="signupForm">
-  <input id="email" type="email" placeholder="이메일" required />
-  <input id="password" type="password" placeholder="비밀번호 (6자 이상)" required />
-  <button type="submit">회원가입 & 자동로그인</button>
-  <p style="margin-top:10px">이미 계정이 있나요? <a href="auth_login.html">로그인</a></p>
-</form>
+<div class="wrap">
+    <h2>회원가입</h2>
+    <form id="signupForm">
+        <input type="email" id="email" placeholder="이메일 입력" required />
+        <input type="password" id="password" placeholder="비밀번호 입력" required />
+        <button type="submit">회원가입</button>
+    </form>
+</div>
 
-<script>
-const SUPABASE_URL = "https://wfgqdswcdwdvfaqwejmd.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndmZ3Fkc3djZHdkdmZhcXdlam1kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ4MDc2NjcsImV4cCI6MjA4MDM4MzY2N30.Jb9nqalTEPp3Grwy3lnLczl6cE7gTSsK4Ol3hXGdl1Q";
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+<!-- 🔥 Supabase 연결 -->
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
-document.getElementById('signupForm').addEventListener('submit', async (e)=>{
-  e.preventDefault();
-  const email = document.getElementById('email').value.trim();
-  const password = document.getElementById('password').value;
-  if(password.length < 6) return alert('비밀번호는 최소 6자 이상이어야 합니다.');
+// 클라이언트 연결
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-  // signUp
-  const { data, error } = await supabase.auth.signUp({ email, password });
-  if(error) { alert('회원가입 오류: ' + error.message); console.error(error); return; }
+// 폼 submit → 회원가입 실행
+document.getElementById("signupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
 
-  // Supabase 기본은 이메일 확인 프로세스가 들어갈 수 있음.
-  // 대부분 테스트 시 바로 session이 생성되므로 바로 로그인으로 리다이렉트 처리
-  alert('회원가입 완료. 이메일로 확인메일이 올 수 있습니다. 로그인 페이지로 이동합니다.');
-  location.href = 'auth_login.html';
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value.trim();
+
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+    });
+
+    if (error) {
+        alert("❌ 회원가입 실패: " + error.message);
+        return;
+    }
+
+    alert("🎉 가입 완료!\n로그인 페이지로 이동됩니다.");
+    window.location.href = "auth_login.html"; // 가입 후 로그인페이지로 이동
 });
 </script>
+
 </body>
 </html>
