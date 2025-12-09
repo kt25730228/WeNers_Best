@@ -1,134 +1,57 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="utf-8"/>
-<title>회원가입 - WeNers</title>
-<style>
-  body{font-family:Arial;display:flex;align-items:center;justify-content:center;height:100vh;background:#f4fbff}
-  .card{width:360px;padding:24px;background:#fff;border-radius:12px;box-shadow:0 6px 20px rgba(9,30,66,0.08)}
-  input{width:100%;padding:10px;margin:8px 0;border:1px solid #ddd;border-radius:8px}
-  button{width:100%;padding:12px;background:#0066ff;color:#fff;border:none;border-radius:8px;cursor:pointer}
-  .note{font-size:13px;color:#666;margin-top:10px}
-</style>
+  <meta charset="utf-8" />
+  <title>회원가입 | WeNers</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <style>
+    body{font-family:Arial;padding:30px;background:#f6f9ff}
+    form{max-width:420px;margin:40px auto;background:#fff;padding:20px;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+    input{width:100%;padding:10px;margin:8px 0;border-radius:6px;border:1px solid #ddd}
+    button{padding:10px 14px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer}
+  </style>
 </head>
 <body>
-  <div class="card">
-    <h3>회원가입</h3>
-    <form id="signupForm">
-      <input id="email" type="email" placeholder="이메일" required />
-      <input id="password" type="password" placeholder="비밀번호 (최소 6자 권장)" required />
-      <input id="nickname" type="text" placeholder="닉네임 (선택)" />
-      <button type="submit">가입하기</button>
-    </form>
-    <div class="note" id="status"></div>
-  </div>
+  <h2 style="text-align:center">회원가입</h2>
+  <form id="signupForm">
+    <input id="email" type="email" placeholder="이메일" required />
+    <input id="password" type="password" placeholder="비밀번호 (6자 이상)" required />
+    <button type="submit">회원가입</button>
+    <p style="margin-top:10px">이미 계정이 있나요? <a href="auth_login.html">로그인</a></p>
+  </form>
 
-<script type="module">
-(async ()=> {
-  const statusEl = document.getElementById('status');
+<script>
+if(!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+  alert('config.js에 SUPABASE_URL / SUPABASE_ANON_KEY를 설정해주세요.');
+  console.error('Missing Supabase config');
+}
 
-  // 1) 로컬/글로벌 config 방식 지원:
-  // - config.js가 `export const SUPABASE_URL = ...` 형태면 import 사용
-  // - config.js가 window.SUPABASE_URL 형태면 window에서 읽음
-  let SUPABASE_URL, SUPABASE_ANON_KEY;
-  try {
-    // 시도: 모듈 방식으로 export 되어 있는지 시도
-    const mod = await import('./config.js').catch(()=>null);
-    if(mod && (mod.SUPABASE_URL || mod.default?.SUPABASE_URL)) {
-      SUPABASE_URL = mod.SUPABASE_URL || mod.default?.SUPABASE_URL;
-      SUPABASE_ANON_KEY = mod.SUPABASE_ANON_KEY || mod.default?.SUPABASE_ANON_KEY;
-    } else {
-      // fallback: window 전역 변수 (예: 기존 config.js가 window.SUPABASE_URL 방식일 때)
-      SUPABASE_URL = window.SUPABASE_URL;
-      SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+const supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+
+document.getElementById('signupForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if(password.length < 6) return alert('비밀번호는 최소 6자 이상이어야 합니다.');
+
+  try{
+    // signUp: 이메일 확인(confirmation) 모드일 수 있음
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if(error) {
+      console.error('signup error', error);
+      return alert('회원가입 오류: ' + error.message);
     }
-  } catch(e){
-    console.error("config import failed:", e);
-    SUPABASE_URL = window.SUPABASE_URL;
-    SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+
+    // 가입 성공: data.user 또는 data.session이 반환될 수 있음
+    console.log('signup result', data);
+    alert('회원가입 성공. 이메일 확인 설정이 있다면 메일을 확인하세요. 로그인 페이지로 이동합니다.');
+    location.href = 'auth_login.html';
+  }catch(err){
+    console.error(err);
+    alert('알 수 없는 오류가 발생했습니다. 콘솔을 확인하세요.');
   }
-
-  if(!SUPABASE_URL || !SUPABASE_ANON_KEY){
-    statusEl.textContent = "환경 설정 오류: config.js에서 SUPABASE_URL / SUPABASE_ANON_KEY를 확인하세요. (콘솔 확인)";
-    console.error("Missing SUPABASE_URL or SUPABASE_ANON_KEY", {SUPABASE_URL, SUPABASE_ANON_KEY});
-    return;
-  }
-
-  // 2) supabase-js 로드
-  let createClient;
-  try {
-    const lib = await import("https://esm.sh/@supabase/supabase-js@2");
-    // lib.createClient 는 default export 외부에 있을 수 있음
-    createClient = lib.createClient || lib.default?.createClient || (lib.supabase && lib.supabase.createClient);
-    if(!createClient) {
-      console.error("supabase createClient not found in imported module", lib);
-      statusEl.textContent = "SDK 로드 오류(콘솔확인)";
-      return;
-    }
-  } catch(err){
-    console.error("Failed to import supabase-js", err);
-    statusEl.textContent = "네트워크 오류: supabase SDK 로드 실패";
-    return;
-  }
-
-  // 3) 클라이언트 생성 (자동 세션 복구 원치 않으면 persistSession:false 로 설정 가능)
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false }
-  });
-
-  // 4) 폼 이벤트
-  document.getElementById('signupForm').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    statusEl.textContent = "";
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    const nickname = document.getElementById('nickname').value.trim();
-
-    if(!email || !password){ statusEl.textContent = "이메일/비밀번호를 입력하세요"; return; }
-    if(password.length < 6){ statusEl.textContent = "비밀번호는 최소 6자 이상 권장합니다"; return; }
-
-    console.log("Submitting signUp", {email});
-    statusEl.textContent = "회원가입 시도 중...";
-
-    try {
-      // 5) 회원가입 요청
-      const { data, error } = await supabase.auth.signUp({ email, password }, { data: { nickname } });
-      // signUp에 두번째 인자(user_metadata)로 추가 메타데이터 전달 가능 (supabase-js v2: 객체 인자 다름; 위는 일반 케이스)
-      if(error){
-        console.error("signUp error", error);
-        statusEl.textContent = "가입 실패: " + error.message;
-        return;
-      }
-      console.log("signUp success", data);
-      statusEl.textContent = "가입 성공! 이메일 확인(Verification)을 완료하세요. (또는 로그인 페이지로 이동)";
-      
-      // 6) (선택) 프로필 테이블에 별도 저장하려면 아래 주석 해제.
-      // 주의: profiles 테이블에 RLS/정책이 있으면 insert 실패할 수 있음.
-      /*
-      try {
-        const user = data.user || (await supabase.auth.getUser()).data.user;
-        if(user){
-          const { error: insertErr } = await supabase.from('profiles').insert({ id: user.id, email: user.email, nickname });
-          if(insertErr) console.warn("profiles insert failed", insertErr);
-          else console.log("profiles created");
-        }
-      } catch(err){
-        console.warn("profile insert exception", err);
-      }
-      */
-
-      // 이후 동작(예: 로그인 페이지로 이동)
-      // location.href = "auth_login.html";
-    } catch(ex){
-      console.error("unexpected error during signUp", ex);
-      statusEl.textContent = "알 수 없는 오류가 발생했습니다(콘솔 확인)";
-    }
-  });
-
-  // 7) 디버그 헬퍼 (개발 중에 브라우저 콘솔에서 supabase 참조하려면)
-  window.__supabase = supabase;
-  console.log("Supabase client ready", { SUPABASE_URL });
-})();
+});
 </script>
 </body>
 </html>
