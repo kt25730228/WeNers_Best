@@ -1,88 +1,106 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>WeNers 실시간 입찰</title>
-
-<!-- Supabase -->
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>
-
-<style>
-body { font-family: Arial; width:700px; margin:30px auto;}
-.item {border-bottom:1px solid #ddd; padding:10px 0;}
-.item h3 {margin:5px 0;}
-</style>
+  <meta charset="utf-8">
+  <title>WeNers 실시간 입찰</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="config.js"></script>
+  <style>body{font-family:Arial;width:700px;margin:30px auto}.item{border-bottom:1px solid #ddd;padding:10px 0}.item h3{margin:5px 0}</style>
 </head>
 <body>
-
-<h2>🔷 위너스 실시간 경매 (로그인)</h2>
-<button onclick="logout()">🚪 로그아웃</button>
-<button onclick="location.href='create_with_image_upload_auth.html'">📌 상품 등록</button>
-<hr>
-<div id="list"></div>
+  <h2>🔷 위너스 실시간 경매</h2>
+  <div id="authArea"></div>
+  <button id="btnCreate" style="display:none" onclick="location.href='create_with_image_upload_auth.html'">📌 상품 등록</button>
+  <hr/>
+  <div id="list"></div>
 
 <script>
-// 🔥 Supabase 연결 — config.js KEY 적용
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+if(!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY) {
+  alert('config.js 설정 필요');
+}
+const supabase = supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
-// 로그인 세션 확인
-supabase.auth.getSession().then(({data})=>{
- if(!data.session) { alert("로그인이 필요합니다"); location.href="auth_login.html"; }
- loadProducts();
- subscribeRealtime();
-});
+async function init(){
+  const { data } = await supabase.auth.getSession();
+  const session = data?.session || null;
 
-// 🔥 실시간 입찰 반영
-function subscribeRealtime(){
- supabase.channel("realtime:bids")
- .on("postgres_changes",{ event:"INSERT", schema:"public", table:"bids" }, loadProducts)
- .subscribe();
+  const authArea = document.getElementById('authArea');
+  authArea.innerHTML = '';
+  if(!session){
+    authArea.innerHTML = `<a href="auth_login.html">로그인</a> | <a href="auth_signup.html">회원가입</a>`;
+  } else {
+    const user = session.user;
+    authArea.innerHTML = `<strong>${user.email}</strong> <button id="logoutBtn">로그아웃</button>`;
+    document.getElementById('btnCreate').style.display = 'inline-block';
+    document.getElementById('logoutBtn').addEventListener('click', async ()=>{
+      await supabase.auth.signOut();
+      location.reload();
+    });
+  }
+
+  await loadProducts();
+  subscribeRealtime();
 }
 
-// 상품 목록 로드
 async function loadProducts(){
- const { data, error } = await supabase.from("products").select("*");
- if(error) return alert("상품 불러오기 실패");
-
- list.innerHTML="";
-
- data.forEach(p=>{
-    list.innerHTML += `
-    <div class="item">
-    <h3>${p.title}</h3>
-    <p>${p.description||""}</p>
-    <img src="${p.images}" width="200"><br><br>
-
-    💰 시작가: ${p.price_start}원 <br>
-    ⚡ 즉시구매: ${p.price_end||"-"}<br><br>
-
-    <input id="bid_${p.id}" type="number" placeholder="입찰가 입력"/>
-    <button onclick="bid('${p.id}')">입찰</button>
-    </div>`;
- });
+  try{
+    const { data, error } = await supabase.from('products').select('*').order('created_at', {ascending:false});
+    if(error){
+      console.error('loadProducts err', error);
+      return alert('상품 불러오기 실패: ' + error.message);
+    }
+    const list = document.getElementById('list');
+    list.innerHTML = '';
+    (data || []).forEach(p=>{
+      const html = `
+        <div class="item">
+          <h3>${escapeHtml(p.title)}</h3>
+          <p>${escapeHtml(p.description || '')}</p>
+          ${p.images ? `<img src="${p.images}" width="200"><br>` : ''}
+          💰 시작가: ${p.price_start}원 <br>
+          ⚡ 즉시구매: ${p.price_end||"-"}<br><br>
+          <input id="bid_${p.id}" type="number" placeholder="입찰가 입력">
+          <button onclick="bid('${p.id}')">입찰</button>
+        </div>`;
+      list.insertAdjacentHTML('beforeend', html);
+    });
+  }catch(err){
+    console.error(err);
+    alert('상품 불러오기 중 오류');
+  }
 }
 
-// 입찰 기능
+function subscribeRealtime(){
+  supabase.channel('realtime:bids')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, payload=>{
+      console.log('realtime payload', payload);
+      loadProducts();
+    }).subscribe();
+}
+
 async function bid(id){
- const price = Number(document.getElementById(`bid_${id}`).value);
- const user = (await supabase.auth.getUser()).data.user;
+  const price = Number(document.getElementById(`bid_${id}`).value);
+  if(!price) return alert('입찰가를 입력하세요.');
+  const { data: userData } = await supabase.auth.getUser();
+  const user = userData?.user;
+  if(!user) return alert('로그인 후 이용하세요.');
 
- await supabase.from("bids").insert({
+  const { error } = await supabase.from('bids').insert([{
     product_id: id,
-    price: price,
-    bidder: user.email
- });
-
- alert("입찰 완료!");
+    price,
+    bidder: user.email,
+    created_at: new Date()
+  }]);
+  if(error){
+    console.error('bid err', error);
+    return alert('입찰 실패: ' + error.message);
+  }
+  alert('입찰 완료!');
 }
 
-// 로그아웃
-function logout(){
- supabase.auth.signOut();
- alert("로그아웃 완료");
- location.href="auth_login.html";
-}
+function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+init();
 </script>
 </body>
 </html>
