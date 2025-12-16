@@ -9,13 +9,31 @@
 <script src="config.js"></script>
 
 <style>
-body { font-family: system-ui, -apple-system, sans-serif; }
+/* 이미지와 일치하는 디자인을 위해 body 폰트 및 배경색 재조정 */
+body { 
+    font-family: 'Malgun Gothic', '맑은 고딕', 'Apple SD Gothic Neo', sans-serif; 
+    background-color: #F8F9FB; /* 배경색 통일 */
+}
+/* 박스 스타일 조정 */
+.login-box {
+    @apply w-full max-w-sm bg-white p-8 rounded-xl shadow-lg; 
+    border: 1px solid #e0e6f0;
+}
+.title-color { 
+    color: #007bff; /* 회원가입 페이지와 동일한 파란색 */
+    font-weight: 700;
+}
+/* 버튼 색상 통일 (회원가입 버튼과 동일한 시원한 파란색) */
+.main-button {
+    background-color: #00a0e9; 
+    @apply w-full p-3 text-white rounded-lg font-semibold hover:bg-blue-700 transition duration-150 ease-in-out;
+}
 </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
+<body class="min-h-screen flex items-center justify-center p-4">
 
-<div class="w-full max-w-sm bg-white p-8 rounded-xl shadow-2xl">
-    <h2 class="text-3xl font-bold text-gray-800 text-center mb-8">로그인</h2>
+<div class="login-box">
+    <h2 class="text-3xl font-bold text-gray-800 text-center mb-8 title-color">로그인</h2>
 
     <form id="loginForm" onsubmit="login(event)" class="space-y-4">
         <div>
@@ -30,8 +48,7 @@ body { font-family: system-ui, -apple-system, sans-serif; }
                    class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
         </div>
 
-        <button type="submit" id="loginBtn" 
-                class="w-full p-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition duration-150 ease-in-out">
+        <button type="submit" id="loginBtn" class="main-button">
             로그인
         </button>
     </form>
@@ -47,18 +64,16 @@ let supabaseClient = null; // 초기화된 Supabase 클라이언트 객체를 �
 
 // Supabase 클라이언트 초기화 함수
 function initializeSupabase() {
-    // window.SUPABASE_URL과 window.SUPABASE_ANON_KEY가 config.js를 통해 정의되었는지 확인
     const url = window.SUPABASE_URL;
     const key = window.SUPABASE_ANON_KEY;
     
     if (url && key && window.supabase && typeof window.supabase.createClient === 'function') {
         supabaseClient = window.supabase.createClient(url, key, { 
-            auth: { persistSession: false, autoRefreshToken: false } 
+            auth: { persistSession: true, autoRefreshToken: true } 
         });
         console.log("Supabase 클라이언트 초기화 성공");
     } else {
         console.error("Supabase 클라이언트 초기화 실패: config.js 설정 오류 또는 라이브러리 로드 실패");
-        alert('Supabase 클라이언트 초기화 실패. config.js를 확인하세요.');
     }
 }
 
@@ -70,20 +85,15 @@ document.addEventListener('DOMContentLoaded', initializeSupabase);
 async function login(e){
     e.preventDefault();
     
-    // ⭐ 핵심 수정: 초기화된 클라이언트 객체가 있는지 확인
     if(!supabaseClient) {
-        alert('로그인 시스템 준비 중입니다. 잠시 후 다시 시도하거나 config.js를 확인하세요.');
+        alert('로그인 시스템 준비 중입니다. 잠시 후 다시 시도해 주세요.');
+        // initializeSupabase(); // 재시도 (필요 시)
         return;
     }
 
-    const emailEl = document.getElementById('email');
-    const passwordEl = document.getElementById('password');
-    
-    const email = emailEl.value.trim();
-    const password = passwordEl.value;
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
 
-    // Supabase 로그인 API 호출
-    // 59번째 줄 오류가 나던 부분: window.supabase 대신 supabaseClient 사용
     const { error } = await supabaseClient.auth.signInWithPassword({
         email: email,
         password: password
