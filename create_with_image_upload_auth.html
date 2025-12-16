@@ -37,9 +37,14 @@ let supabase;
 let currentUser = null;
 
 if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
-    supabase = supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
-        auth: { persistSession: false }
-    });
+    // 💥 FIX 적용: window.supabase 객체에서 createClient 함수를 명시적으로 호출합니다.
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabase = window.supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
+            auth: { persistSession: false }
+        });
+    } else {
+        console.error('Supabase 라이브러리(createClient)를 찾을 수 없습니다. CDN 로드를 확인하세요.');
+    }
 } else {
     console.error('Supabase 설정 (config.js)을 확인하세요.');
 }
@@ -64,7 +69,6 @@ async function submitProduct() {
     let imageUrl = '';
     if (file) {
         try {
-            // 파일명: [유저ID]/[타임스탬프]_[파일명]
             const fileName = currentUser.id + '/' + Date.now() + '_' + file.name.replace(/\s+/g, '_');
             const bucket = 'product-images';
             
@@ -74,7 +78,6 @@ async function submitProduct() {
                 return alert('이미지 업로드 실패: ' + uploadErr.message);
             }
             
-            // 이미지 Public URL 가져오기
             const { data: pu } = supabase.storage.from(bucket).getPublicUrl(fileName);
             imageUrl = pu.publicUrl;
 
@@ -95,7 +98,7 @@ async function submitProduct() {
         price_start, 
         price_buy_now, 
         end_date,
-        images: imageUrl ? [imageUrl] : [], // 이미지 URL이 있으면 배열로 저장
+        images: imageUrl ? [imageUrl] : [], 
         creator_id: currentUser.id 
     }]);
 
@@ -108,7 +111,7 @@ async function submitProduct() {
 }
 
 // ----------------------------------------------------
-// 🔥 인증 확인 (로그인 안 되어 있으면 로그인 페이지로)
+// 🔥 인증 확인 
 // ----------------------------------------------------
 async function checkAuth() {
     if (!supabase) return;
