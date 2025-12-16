@@ -1,385 +1,484 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>WeNers Auction Bids</title>
+<meta charset="utf-8">
+<title>위너스 경매</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script>
+<script src="config.js"></script> 
 
 <style>
-/* 폰트 설정 */
-body { font-family: system-ui, -apple-system, sans-serif; }
-/* 버튼 hover 효과 유지 */
-.button-primary:hover { @apply bg-blue-700; }
-.button-secondary:hover { @apply bg-gray-500; }
+  body { font-family: system-ui, -apple-system, sans-serif; }
+  /* 애니메이션 스타일 (원본 유지) */
+  @keyframes fadeA { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0.15; } }
+  @keyframes fadeB { 0%, 45% { opacity: 0.15; } 55%, 100% { opacity: 1; } }
+  .fade-a { animation: fadeA 3s infinite ease-in-out; }
+  .fade-b { animation: fadeB 3s infinite ease-in-out; }
+  @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
+  .animate-float { animation: float 4s ease-in-out infinite; }
+  .animate-float-delay { animation: float 4s ease-in-out infinite; animation-delay: 2s; }
 </style>
 </head>
-<body class="bg-gray-100">
+<body class="bg-gray-50 min-h-screen">
 
 <header class="bg-white shadow-md sticky top-0 z-10">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-        <h1 class="text-2xl font-bold text-gray-800">WeNers 옥션</h1>
-        <div class="space-x-4 flex items-center">
-            <a href="create_with_image_upload_auth.html" id="createProductLink" class="px-4 py-2 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition duration-150 ease-in-out">
-                상품 등록
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+            <a href="index.html" class="flex items-center space-x-2">
+                <span class="text-3xl font-extrabold text-blue-600">WeNers</span>
+                <span class="text-xs text-gray-500 hidden sm:inline">경매 플랫폼</span>
             </a>
-            <button id="authBtn" 
-                    class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition duration-150 ease-in-out">
-                로그인
-            </button>
+
+            <div class="flex items-center space-x-4">
+                <span id="userBox" class="text-sm text-gray-700 font-medium hidden sm:block"></span>
+
+                <a id="loginBtn" href="auth_login.html" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-blue-700 transition duration-150 ease-in-out">
+                    로그인
+                </a>
+                <a id="signupBtn" href="auth_signup.html" class="text-gray-600 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-gray-100 transition duration-150 ease-in-out">
+                    회원가입
+                </a>
+                
+                <button id="logoutBtn" onclick="logout()" style="display: none;" class="bg-red-500 text-white px-3 py-1.5 rounded-lg text-sm font-semibold hover:bg-red-600 transition duration-150 ease-in-out">
+                    로그아웃
+                </button>
+            </div>
         </div>
     </div>
 </header>
 
-<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <h2 class="text-3xl font-bold text-gray-800 mb-6">진행중인 경매</h2>
-    
-    <div id="products-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <div id="loading-message" class="col-span-full text-center text-lg text-gray-500 py-10">
-            상품 정보를 불러오는 중...
-        </div>
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">🔥 실시간 경매 상품</h1>
+        <a id="createProductBtn" href="auth_login.html" class="flex items-center space-x-2 bg-green-500 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-600 transition duration-150 ease-in-out">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            <span>상품 등록</span>
+        </a>
     </div>
 
-    <div id="bid-modal" class="fixed inset-0 bg-gray-600 bg-opacity-75 hidden items-center justify-center p-4 z-20" onclick="closeBidModal(event)">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md p-6" onclick="event.stopPropagation()">
-            <h3 id="modal-product-title" class="text-xl font-bold mb-4"></h3>
-            <p id="modal-current-bid" class="text-lg mb-4">현재 최고 입찰가: ₩0</p>
-            
-            <div class="space-y-4">
-                <input type="number" id="bid-amount" placeholder="입찰 금액 입력 (최소 1,000원 단위)" 
-                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500" min="1000" step="1000"/>
-                
-                <button onclick="submitBid()" 
-                        class="w-full p-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition duration-150 ease-in-out">
-                    입찰하기
-                </button>
-            </div>
-            <button onclick="closeBidModal()" class="mt-4 text-sm text-gray-500 hover:text-gray-700">취소</button>
-        </div>
+    <div id="product-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        <p class="col-span-full text-center text-gray-500 py-10">상품을 불러오는 중...</p>
     </div>
 </main>
 
+<footer class="mt-20 py-8 border-t bg-white">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-gray-500 text-sm">
+        &copy; 2025 WeNers Auction Platform. All rights reserved.
+    </div>
+</footer>
+
+<div id="bidHistoryModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-md p-6">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-800">입찰 기록</h3>
+            <button onclick="closeBidModal()" class="text-gray-500 hover:text-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        
+        <div id="bidHistoryList" class="max-h-80 overflow-y-auto space-y-2">
+            <p class="text-center text-gray-500 py-4">기록을 불러오는 중...</p>
+        </div>
+        
+        <div class="mt-4 pt-3 border-t text-sm text-gray-600">
+            <p id="currentHighestBid">현재 최고가: -</p>
+        </div>
+    </div>
+</div>
+
+
 <script>
-// Supabase 클라이언트 초기화는 config.js에서 처리하며, window.supabase 변수를 사용합니다.
-let supabase = window.supabase;
-let currentProducts = {}; // 상품 데이터를 저장할 객체
-let modalProductId = null; // 현재 모달에서 처리 중인 상품 ID
+// config.js에서 전역으로 설정된 키/URL을 가져옵니다.
+const SUPABASE_URL_FROM_WINDOW = window.SUPABASE_URL;
+const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
 
-document.addEventListener('DOMContentLoaded', () => {
-    supabase = window.supabase; // config.js 로드 후 다시 할당
-    if (!supabase) {
-        document.getElementById('loading-message').textContent = 'Supabase 설정이 필요합니다. config.js를 확인하세요.';
-        return;
-    }
-    
-    checkAuth();
-    fetchProductsAndBids();
-    setupRealtime();
-    setInterval(updateTimers, 1000); // 1초마다 남은 시간 업데이트
-});
+let supabase = null; 
+let currentUser = null; 
+let auctionEndDates = new Map(); // 상품 마감 시간을 저장할 Map
+let timerInterval = null;        // 타이머 인터벌 ID
 
-// --- 인증 및 UI 업데이트 함수 ---
-async function checkAuth() {
-    const { data: { user } } = await supabase.auth.getUser();
-    const authBtn = document.getElementById('authBtn');
-    
-    if (user) {
-        authBtn.textContent = '로그아웃';
-        authBtn.onclick = logout;
-    } else {
-        authBtn.textContent = '로그인';
-        authBtn.onclick = () => location.href = 'auth_login.html';
+// 🔥 핵심 수정: Supabase 클라이언트 인스턴스를 명시적으로 생성하여 할당합니다.
+if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
+    // window.supabase는 CDN 로드 시점에 'createClient' 함수를 포함합니다.
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabase = window.supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
+            auth: { persistSession: false, autoRefreshToken: false }
+        });
+        // 전역 window.supabase에 클라이언트 인스턴스 할당 (다른 파일과의 통일성 유지)
+        window.supabase = supabase;
     }
 }
 
-async function logout() {
-    const { error } = await supabase.auth.signOut();
-    if (error) alert('로그아웃 실패: ' + error.message);
-    else {
-        alert('로그아웃되었습니다.');
-        checkAuth(); // 버튼을 '로그인'으로 변경
-        fetchProductsAndBids(); // 로그아웃 후 데이터 새로고침
+
+// ----------------------------------------------------
+// 🔥 1. 경매 데이터 로드 및 렌더링
+// ----------------------------------------------------
+
+async function getLatestBid(productId) {
+    if (!supabase) return null;
+    const { data: bids, error } = await supabase
+        .from('bids')
+        .select('price, bidder_id, created_at')
+        .eq('product_id', productId)
+        .order('price', { ascending: false })
+        .limit(1);
+
+    if (error) {
+        console.error('입찰가 불러오기 실패:', error);
+        return null;
     }
+    return bids[0] || null;
 }
 
-// --- 데이터 가져오기 및 렌더링 함수 ---
-
-// 경매 상품과 최고 입찰가를 모두 가져오는 함수
-async function fetchProductsAndBids() {
-    document.getElementById('products-container').innerHTML = '<div id="loading-message" class="col-span-full text-center text-lg text-gray-500 py-10">상품 정보를 불러오는 중...</div>';
+async function loadProductsAndBids() {
+    if (!supabase) return;
+    const listEl = document.getElementById('product-list');
+    if (!listEl) return;
     
+    listEl.innerHTML = '<p class="text-center col-span-full py-10 text-gray-500">상품을 불러오는 중...</p>';
+    auctionEndDates.clear(); 
+
+    // 경매 마감 처리된 상품(is_sold: true)은 제외하고 정렬
     const { data: products, error: productError } = await supabase
         .from('products')
         .select('*')
-        .order('created_at', { ascending: false });
+        .eq('is_sold', false) 
+        .order('end_date', { ascending: true }); 
 
     if (productError) {
-        console.error('상품 로드 오류:', productError);
-        document.getElementById('loading-message').textContent = '상품 정보를 불러오는 데 실패했습니다.';
+        listEl.innerHTML = '<p class="text-center col-span-full py-10 text-red-500">상품 데이터 로드 실패: ' + productError.message + '</p>';
         return;
     }
-
-    // 각 상품의 최고 입찰가를 병렬로 가져옴
-    const bidPromises = products.map(product => 
-        supabase
-            .from('bids')
-            .select('amount')
-            .eq('product_id', product.id)
-            .order('amount', { ascending: false })
-            .limit(1)
-            .maybeSingle()
-            .then(({ data }) => ({
-                ...product,
-                current_bid: data ? data.amount : product.starting_price,
-            }))
-    );
-
-    const productsWithBids = await Promise.all(bidPromises);
     
-    currentProducts = productsWithBids.reduce((acc, p) => {
-        acc[p.id] = p;
-        return acc;
-    }, {});
-    
-    renderProducts();
-}
-
-// 상품 카드를 HTML로 렌더링하는 함수
-function renderProducts() {
-    const container = document.getElementById('products-container');
-    container.innerHTML = '';
-    
-    const productArray = Object.values(currentProducts);
-
-    if (productArray.length === 0) {
-        container.innerHTML = '<div class="col-span-full text-center text-lg text-gray-500 py-10">등록된 경매 상품이 없습니다.</div>';
+    if (!products || products.length === 0) {
+        listEl.innerHTML = '<p class="text-center col-span-full py-10 text-gray-500">등록된 경매 상품이 없습니다. 상품을 등록해 보세요.</p>';
         return;
     }
+    
+    let html = '';
+    for (const product of products) {
+        auctionEndDates.set(product.id, new Date(product.end_date).getTime());
 
-    productArray.forEach(product => {
-        const remainingTime = calculateRemainingTime(product.end_time);
-        const isEnded = remainingTime.seconds <= 0;
-        
-        const cardHtml = `
-            <div id="product-card-${product.id}" class="bg-white rounded-xl shadow-lg hover:shadow-2xl transition duration-300 overflow-hidden flex flex-col">
-                <a href="detail.html?id=${product.id}" class="block relative h-48 overflow-hidden">
-                    <img src="${product.image_url || 'https://via.placeholder.com/600x400?text=No+Image'}" 
-                         alt="${product.title}" class="w-full h-full object-cover transition duration-300 transform hover:scale-105">
-                    ${isEnded ? '<div class="absolute inset-0 bg-red-600 bg-opacity-70 flex items-center justify-center"><span class="text-white text-2xl font-bold">경매 종료</span></div>' : ''}
-                </a>
-                <div class="p-5 flex-grow flex flex-col">
-                    <h3 class="text-xl font-semibold text-gray-800 mb-2 truncate">${product.title}</h3>
-                    <p class="text-sm text-gray-500 mb-3">${product.description.substring(0, 50)}${product.description.length > 50 ? '...' : ''}</p>
-                    
-                    <div class="flex justify-between items-center mb-4">
-                        <div class="text-lg font-bold">
-                            <span class="text-gray-900">현재가:</span>
-                            <span id="bid-${product.id}" class="text-blue-600">${product.current_bid ? new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(product.current_bid) : '₩'+product.starting_price.toLocaleString('ko-KR')}</span>
-                        </div>
-                        <div id="timer-${product.id}" class="text-sm font-medium ${isEnded ? 'text-red-600' : 'text-green-600'}">
-                            ${formatRemainingTime(remainingTime)}
-                        </div>
-                    </div>
+        const latestBid = await getLatestBid(product.id);
+        html += renderProductCard(product, latestBid);
+    }
+    listEl.innerHTML = html;
 
-                    <button ${isEnded ? 'disabled' : ''} 
-                            onclick="openBidModal('${product.id}')" 
-                            class="mt-auto w-full p-3 text-white rounded-lg font-semibold transition duration-150 ease-in-out ${isEnded ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}">
-                        입찰하기
-                    </button>
-                </div>
-            </div>
-        `;
-        container.innerHTML += cardHtml;
-    });
-    // 타이머 즉시 업데이트 (초기 렌더링 시 시간 표시를 위해)
     updateTimers(); 
 }
 
-// --- 실시간 타이머 관련 함수 ---
-function calculateRemainingTime(endTimeStr) {
-    const endTime = new Date(endTimeStr).getTime();
-    const now = new Date().getTime();
-    const distance = endTime - now;
+function renderProductCard(product, latestBid) {
+    const isEvent = product.type === 'event';
+    const currentPrice = latestBid ? latestBid.price : product.price_start;
+    const bidCount = latestBid ? '입찰 1회 이상' : '첫 입찰을 기다립니다';
     
-    if (distance <= 0) {
-        return { days: 0, hours: 0, minutes: 0, seconds: 0 };
+    let imageUrl = '';
+    // images 필드가 배열일 경우 첫 번째 요소 사용
+    if (product.images && product.images.length > 0) {
+        imageUrl = Array.isArray(product.images) ? product.images[0] : product.images;
     }
+
+    const isFinished = new Date(product.end_date) <= new Date();
+
+    const timerHtml = `<span id="timer-${product.id}" class="text-xs text-gray-500">계산 중...</span>`;
+
+    return `
+        <div class="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 overflow-hidden ${isFinished ? 'opacity-70 grayscale' : ''}" data-product-id="${product.id}">
+            <a href="detail.html?id=${product.id}">
+                ${imageUrl ? `<img class="w-full h-48 object-cover hover:opacity-80 transition" src="${imageUrl}" alt="${product.title}">` : `<div class="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">이미지 없음</div>`}
+            </a>
+            
+            <div class="p-5">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-semibold px-2 py-1 rounded-full ${isEvent ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700'}">${isEvent ? '이벤트 경매' : '일반 경매'}</span>
+                    ${timerHtml}
+                </div>
+                <a href="detail.html?id=${product.id}" class="hover:text-blue-600 transition duration-150">
+                    <h3 class="text-xl font-bold text-gray-800 truncate">${product.title}</h3>
+                </a>
+                <p class="text-sm text-gray-600 mb-4">${product.description ? product.description.substring(0, 50) + (product.description.length > 50 ? '...' : '') : '상품 설명이 없습니다.'}</p>
+                
+                <div class="border-t border-b py-3 mb-4">
+                    <p class="text-gray-500 text-sm">현재가</p>
+                    <p class="text-2xl font-extrabold text-blue-600">₩ ${currentPrice.toLocaleString('ko-KR')}</p>
+                    <p class="text-xs text-gray-400 mt-1">${bidCount}</p>
+                </div>
+
+                <button onclick="showBidModal(${product.id}, '${product.title.replace(/'/g, "\\'")}')" 
+                        class="w-full bg-gray-200 text-gray-700 py-1 mb-3 rounded-lg text-sm font-medium hover:bg-gray-300 transition duration-150 ease-in-out">
+                    입찰 내역 보기
+                </button>
+                
+                ${!isFinished ? `
+                    <div class="flex items-center space-x-2 mb-4">
+                        <input type="number" id="bid-input-${product.id}" placeholder="입찰 금액 (최소 ${currentPrice + 1}원)" 
+                            min="${currentPrice + 1}" class="w-full border rounded-lg p-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                    </div>
+                    
+                    <button onclick="placeBid(${product.id})" 
+                            class="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition duration-150 ease-in-out disabled:opacity-50">
+                        즉시 입찰
+                    </button>
+                ` : `
+                    <button disabled class="w-full bg-gray-400 text-white py-2 rounded-lg font-semibold">
+                        경매 마감
+                    </button>
+                `}
+            </div>
+        </div>
+    `;
+}
+
+// ----------------------------------------------------
+// 🔥 2. 입찰 로직 (Supabase DB 저장)
+// ----------------------------------------------------
+async function placeBid(productId) {
+    if (!currentUser) {
+        alert('로그인 후 입찰할 수 있습니다. 로그인 페이지로 이동합니다.');
+        return window.location.href = 'auth_login.html';
+    }
+
+    const bidInput = document.getElementById(`bid-input-${productId}`);
+    const bidAmount = Number(bidInput.value);
+
+    if (isNaN(bidAmount) || bidAmount <= 0) {
+        return alert('유효한 금액을 입력해 주세요.');
+    }
+
+    const endTime = auctionEndDates.get(productId);
+    if (endTime && endTime <= new Date().getTime()) {
+        alert('경매가 이미 마감되었습니다.');
+        loadProductsAndBids();
+        return;
+    }
+
+    const { data: productData } = await supabase.from('products').select('price_start').eq('id', productId).single();
+    const latestBid = await getLatestBid(productId);
     
-    return {
-        days: Math.floor(distance / (1000 * 60 * 60 * 24)),
-        hours: Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
-        minutes: Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)),
-        seconds: Math.floor((distance % (1000 * 60)) / 1000),
-    };
-}
-
-function formatRemainingTime(time) {
-    if (time.days > 0) {
-        return `${time.days}일 ${time.hours}시간 남음`;
-    } else if (time.hours > 0) {
-        return `${String(time.hours).padStart(2, '0')}:${String(time.minutes).padStart(2, '0')}:${String(time.seconds).padStart(2, '0')} 남음`;
-    } else if (time.minutes > 0) {
-        return `${String(time.minutes).padStart(2, '0')}:${String(time.seconds).padStart(2, '0')} 남음`;
-    } else if (time.seconds > 0) {
-        return `${time.seconds}초 남음`;
-    } else {
-        return '경매 종료';
+    const priceStart = productData.price_start || 0;
+    const currentPrice = latestBid ? latestBid.price : priceStart;
+    
+    if (bidAmount <= currentPrice) {
+        return alert(`현재 최고가(${currentPrice.toLocaleString('ko-KR')}원)보다 높은 금액을 입력해야 합니다.`);
     }
+
+    const { error } = await supabase
+        .from('bids')
+        .insert([{ 
+            product_id: productId, 
+            bidder_id: currentUser.id, 
+            price: bidAmount 
+        }]);
+
+    if (error) {
+        return alert('입찰 실패: ' + error.message);
+    }
+
+    alert('입찰 성공! 실시간으로 반영됩니다.');
+    bidInput.value = ''; 
 }
 
-function updateTimers() {
-    Object.values(currentProducts).forEach(product => {
-        const timerEl = document.getElementById(`timer-${product.id}`);
-        const bidBtn = document.querySelector(`#product-card-${product.id} button`);
 
-        if (timerEl) {
-            const time = calculateRemainingTime(product.end_time);
-            const isEnded = time.seconds <= 0 && time.minutes <= 0 && time.hours <= 0 && time.days <= 0;
+// ----------------------------------------------------
+// 🔥 3. 실시간 업데이트 및 구독
+// ----------------------------------------------------
 
-            timerEl.textContent = formatRemainingTime(time);
+function subscribeToRealtime() {
+    if (!supabase) return;
 
-            if (isEnded) {
-                // 경매 종료 상태 UI 업데이트
-                if (!timerEl.classList.contains('text-red-600')) {
-                    timerEl.classList.remove('text-green-600');
-                    timerEl.classList.add('text-red-600');
-                    if (bidBtn) {
-                        bidBtn.disabled = true;
-                        bidBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
-                        bidBtn.classList.add('bg-gray-400', 'cursor-not-allowed');
-                        bidBtn.textContent = '경매 종료';
-                    }
-                    // 경매 종료 Overlay 추가 (렌더링 시 추가되도록 수정됨)
-                    const card = document.getElementById(`product-card-${product.id}`);
-                    if (card && !card.querySelector('.absolute.inset-0')) {
-                        const overlay = document.createElement('div');
-                        overlay.className = 'absolute inset-0 bg-red-600 bg-opacity-70 flex items-center justify-center';
-                        overlay.innerHTML = '<span class="text-white text-2xl font-bold">경매 종료</span>';
-                        card.querySelector('a').appendChild(overlay);
-                    }
-                }
-            } else {
-                 if (bidBtn) {
-                    bidBtn.disabled = false;
-                    bidBtn.textContent = '입찰하기';
-                 }
-            }
-        }
-    });
-}
-
-// --- 실시간 채널 설정 함수 ---
-function setupRealtime() {
-    supabase
-        .channel('bids_realtime')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bids' }, (payload) => {
-            const newBid = payload.new;
-            console.log('New bid received:', newBid);
-            updateProductBid(newBid.product_id, newBid.amount);
+    // 'bids' 테이블 변경 감지 (새 입찰 발생)
+    supabase.channel('public:bids_changes')
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'bids' 
+        }, payload => {
+            console.log('새로운 입찰 감지:', payload);
+            loadProductsAndBids(); // 전체 목록 새로고침
+        })
+        .subscribe();
+    
+    // 'products' 테이블 변경 감지 (상품 등록, 마감 등)
+    supabase.channel('public:products_changes')
+        .on('postgres_changes', {
+            event: '*', 
+            schema: 'public', 
+            table: 'products' 
+        }, payload => {
+            console.log('상품 데이터 변경 감지:', payload);
+            loadProductsAndBids(); 
         })
         .subscribe();
 }
 
-// 실시간 입찰 업데이트 처리 함수
-function updateProductBid(productId, newAmount) {
-    if (currentProducts[productId]) {
-        // 현재 최고 입찰가보다 높을 경우에만 업데이트
-        if (newAmount > currentProducts[productId].current_bid) {
-            currentProducts[productId].current_bid = newAmount;
+// ----------------------------------------------------
+// 🔥 3.1. 타이머 업데이트 로직 (1초마다 실행)
+// ----------------------------------------------------
+
+function updateTimers() {
+    const now = new Date().getTime();
+
+    auctionEndDates.forEach((endTime, productId) => {
+        const remainingTime = endTime - now;
+        const timerEl = document.getElementById(`timer-${productId}`);
+        
+        if (!timerEl) return; 
+
+        if (remainingTime <= 0) {
+            timerEl.innerHTML = '<span class="text-red-500 font-bold">경매 마감</span>';
             
-            const bidEl = document.getElementById(`bid-${productId}`);
-            if (bidEl) {
-                bidEl.textContent = new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(newAmount);
+            if (timerEl.dataset.finished !== 'true') {
+                 timerEl.dataset.finished = 'true';
+                 // 마감 시 목록에서 제외를 위해 새로고침
+                 loadProductsAndBids(); 
             }
+        } else {
+            const days = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((remainingTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
+
+            let timeString = '';
+            if (days > 0) {
+                timeString += `${days}일 `;
+            }
+            timeString += `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} 남음`;
             
-            // 모달이 열려있다면 모달 내용도 업데이트
-            if (modalProductId === productId) {
-                document.getElementById('modal-current-bid').textContent = `현재 최고 입찰가: ${new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(newAmount)}`;
+            timerEl.textContent = timeString;
+            
+            if (remainingTime < 3600000) { 
+                timerEl.classList.add('text-red-600', 'font-bold');
+            } else {
+                timerEl.classList.remove('text-red-600', 'font-bold');
             }
         }
-    }
+    });
 }
 
-// --- 입찰 모달 관련 함수 ---
-function openBidModal(productId) {
-    if (!supabase.auth.getUser()) {
-        alert('로그인이 필요한 기능입니다.');
-        location.href = 'auth_login.html';
+// ----------------------------------------------------
+// 🔥 4. 인증 및 UI 관리
+// ----------------------------------------------------
+
+async function checkAuthAndInit() {
+    if (!supabase) {
+        document.getElementById('product-list').innerHTML = '<p class="col-span-full text-center py-10 text-red-500">Supabase 클라이언트 초기화 실패. config.js를 확인하세요.</p>';
         return;
     }
     
-    modalProductId = productId;
-    const product = currentProducts[productId];
+    const { data: { session } } = await supabase.auth.getSession();
+    currentUser = session ? session.user : null;
+
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const signupBtn = document.getElementById('signupBtn');
+    const userBox = document.getElementById('userBox');
+    const createBtn = document.getElementById('createProductBtn');
+
+    if (currentUser) {
+        if (loginBtn) loginBtn.style.display = 'none';
+        if (signupBtn) signupBtn.style.display = 'none';
+        if (logoutBtn) logoutBtn.style.display = 'inline-flex';
+        if (userBox) userBox.textContent = `환영합니다, ${currentUser.email.split('@')[0]}님!`;
+        if (createBtn) createBtn.href = 'create_with_image_upload_auth.html'; 
+    } else {
+        if (loginBtn) loginBtn.style.display = 'inline-flex';
+        if (signupBtn) signupBtn.style.display = 'inline-flex';
+        if (logoutBtn) logoutBtn.style.display = 'none';
+        if (userBox) userBox.textContent = '';
+        if (createBtn) createBtn.href = 'auth_login.html'; 
+    }
     
-    document.getElementById('modal-product-title').textContent = product.title;
-    document.getElementById('modal-current-bid').textContent = `현재 최고 입찰가: ${new Intl.NumberFormat('ko-KR', { style: 'currency', currency: 'KRW' }).format(product.current_bid)}`;
+    loadProductsAndBids();
+    subscribeToRealtime();
     
-    const bidAmountInput = document.getElementById('bid-amount');
-    // 최소 입찰가 (현재가 + 1000)
-    const minBidAmount = product.current_bid + 1000; 
-    
-    bidAmountInput.value = minBidAmount;
-    bidAmountInput.min = minBidAmount; // HTML min 속성 설정
-    
-    document.getElementById('bid-modal').classList.remove('hidden');
-    document.getElementById('bid-modal').classList.add('flex');
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimers, 1000);
+}
+
+async function logout() {
+    if (!supabase) return;
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+        alert('로그아웃 실패: ' + error.message);
+    } else {
+        alert('로그아웃 성공');
+        window.location.reload(); 
+    }
+}
+
+// ----------------------------------------------------
+// 🔥 5. 입찰 내역 모달 제어 함수 (기존 유지)
+// ----------------------------------------------------
+async function showBidModal(productId, productTitle) {
+    if (!supabase) return alert('Supabase 클라이언트 초기화 실패');
+
+    const modal = document.getElementById('bidHistoryModal');
+    const titleEl = document.getElementById('modalTitle');
+    const listEl = document.getElementById('bidHistoryList');
+    const highestEl = document.getElementById('currentHighestBid');
+
+    if (!modal || !listEl) return;
+
+    titleEl.textContent = `${productTitle} - 입찰 기록`;
+    listEl.innerHTML = '<p class="text-center text-blue-500 py-4">입찰 기록을 불러오는 중...</p>';
+    highestEl.textContent = '현재 최고가: -';
+    modal.style.display = 'flex'; 
+
+    const { data: bids, error } = await supabase
+        .from('bids')
+        .select('price, bidder_id, created_at')
+        .eq('product_id', productId)
+        .order('price', { ascending: false });
+
+    if (error) {
+        listEl.innerHTML = '<p class="text-center text-red-500 py-4">입찰 내역 로드 실패: ' + error.message + '</p>';
+        return;
+    }
+
+    if (!bids || bids.length === 0) {
+        const productData = await supabase.from('products').select('price_start').eq('id', productId).single();
+        const startPrice = productData.data?.price_start || 0;
+
+        highestEl.textContent = `현재 최고가: ₩ ${startPrice.toLocaleString('ko-KR')}`;
+        listEl.innerHTML = '<p class="text-center text-gray-500 py-4">아직 입찰 기록이 없습니다.</p>';
+        return;
+    }
+
+    const maxPrice = bids[0].price;
+    highestEl.textContent = `현재 최고가: ₩ ${maxPrice.toLocaleString('ko-KR')}`;
+
+    listEl.innerHTML = bids.map(bid => {
+        const bidderPrefix = bid.bidder_id ? bid.bidder_id.substring(0, 3) : '익명';
+        const maskedEmail = bidderPrefix + '****'; 
+        const time = new Date(bid.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        
+        return `
+            <div class="flex justify-between items-center p-3 border rounded-md ${bid.price === maxPrice ? 'bg-yellow-50 border-yellow-300 font-bold' : 'bg-white'}">
+                <span class="text-lg text-blue-600">₩ ${bid.price.toLocaleString('ko-KR')}</span>
+                <div class="text-right">
+                    <span class="block text-sm text-gray-700">${maskedEmail}</span>
+                    <span class="block text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
 }
 
 function closeBidModal() {
-    document.getElementById('bid-modal').classList.remove('flex');
-    document.getElementById('bid-modal').classList.add('hidden');
-    modalProductId = null;
-}
-
-async function submitBid() {
-    const bidAmount = parseInt(document.getElementById('bid-amount').value);
-    
-    if (!modalProductId) return;
-    
-    const product = currentProducts[modalProductId];
-    const minAmount = product.current_bid + 1000;
-    
-    if (isNaN(bidAmount) || bidAmount < minAmount || bidAmount % 1000 !== 0) {
-        return alert(`입찰 금액은 최소 ₩${minAmount.toLocaleString('ko-KR')} 이상이어야 하며, ₩1,000원 단위로 입력해야 합니다.`);
-    }
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        alert('로그인이 필요합니다.');
-        closeBidModal();
-        location.href = 'auth_login.html';
-        return;
-    }
-    
-    // 입찰 데이터 삽입
-    const { error } = await supabase
-        .from('bids')
-        .insert([
-            {
-                product_id: modalProductId,
-                user_id: user.id,
-                amount: bidAmount,
-            },
-        ]);
-
-    if (error) {
-        alert('입찰 실패: ' + error.message);
-    } else {
-        alert(`₩${bidAmount.toLocaleString('ko-KR')} 입찰 성공!`);
-        closeBidModal();
-        // 실시간 채널이 업데이트를 처리하므로, 별도로 fetchProductsAndBids를 호출하지 않습니다.
+    const modal = document.getElementById('bidHistoryModal');
+    if (modal) {
+        modal.style.display = 'none';
     }
 }
 
-// URL의 쿼리 파라미터를 파싱하는 함수 (detail.html로 이동 시 사용)
-function getUrlParameter(name) {
-    name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
-    const regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
-    const results = regex.exec(location.search);
-    return results === null ? '' : decodeURIComponent(results[1].replace(/\+/g, ' '));
-};
+
+// 페이지 로드 시 시작
+document.addEventListener('DOMContentLoaded', checkAuthAndInit);
 </script>
 
 </body>
