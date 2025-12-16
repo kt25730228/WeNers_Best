@@ -3,17 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <title>회원가입</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; width: 400px; margin: 50px auto; padding: 20px; background-color: #fff;}
+  h2 { font-size: 1.5rem; margin-bottom: 20px; color: #1f2937; }
+  input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+  button { width: 100%; padding: 10px; background: #2563eb; color: white; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background-color 0.15s; }
+</style>
+</head>
+
+<body>
+<div class="max-w-md mx-auto p-8 bg-white rounded-lg shadow-xl">
+    <h2 class="text-2xl font-bold text-center">✅ 회원가입</h2>
+    <form id="signupForm">
+        <input type="email" id="email" placeholder="이메일 입력" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/><br>
+        <input type="password" id="password" placeholder="비밀번호 입력" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/><br>
+        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">가입하기</button>
+    </form>
+    <p class="text-center text-sm mt-4">
+        <a href="auth_login.html" class="text-blue-600 hover:text-blue-800">이미 회원이신가요? 로그인하기</a>
+    </p>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script> 
 
 <script>
-// Supabase 초기화 로직
-const SUPABASE_URL = window.SUPABASE_URL;
-const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+// config.js에서 전역으로 설정된 키/URL을 안전하게 가져옵니다.
+const SUPABASE_URL_FROM_WINDOW = window.SUPABASE_URL;
+const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
 let supabase;
 
-if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
+    supabase = supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
         auth: { persistSession: false }
     });
 } else {
@@ -23,8 +45,7 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY) {
 document.addEventListener("DOMContentLoaded", () => {
     if (!supabase) return alert('Supabase 클라이언트 초기화 실패');
     
-    // 폼 대신 버튼을 사용한 경우를 가정하고 이벤트 리스너를 붙입니다.
-    const form = document.getElementById("signupForm") || document.querySelector('button[onclick*="signup"]')?.closest('form');
+    const form = document.getElementById("signupForm");
 
     if (form) {
         form.addEventListener("submit", async(e)=>{
@@ -50,20 +71,8 @@ document.addEventListener("DOMContentLoaded", () => {
             alert("회원가입 성공! 이메일 인증 후 로그인 페이지로 이동합니다.");
             location.href="auth_login.html";
         });
-    } else {
-        console.warn("회원가입 폼을 찾을 수 없습니다.");
     }
 });
 </script>
-</head>
-
-<body>
-<h2>회원가입</h2>
-<form id="signupForm">
-  <input type="email" id="email" placeholder="이메일" required><br>
-  <input type="password" id="password" placeholder="비밀번호" required><br><br>
-  <button type="submit">회원가입</button>
-</form>
 </body>
 </html>
-
