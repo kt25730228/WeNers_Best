@@ -7,6 +7,7 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; }
+  /* 애니메이션 스타일 (원본 유지) */
   @keyframes fadeA { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0.15; } }
   @keyframes fadeB { 0%, 45% { opacity: 0.15; } 55%, 100% { opacity: 1; } }
   .fade-a { animation: fadeA 3s infinite ease-in-out; }
@@ -66,6 +67,28 @@
     </div>
 </footer>
 
+<div id="bidHistoryModal" class="fixed inset-0 bg-gray-900 bg-opacity-75 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-2xl w-full max-w-md p-6">
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h3 id="modalTitle" class="text-xl font-bold text-gray-800">입찰 기록</h3>
+            <button onclick="closeBidModal()" class="text-gray-500 hover:text-gray-700">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        
+        <div id="bidHistoryList" class="max-h-80 overflow-y-auto space-y-2">
+            <p class="text-center text-gray-500 py-4">기록을 불러오는 중...</p>
+        </div>
+        
+        <div class="mt-4 pt-3 border-t text-sm text-gray-600">
+            <p id="currentHighestBid">현재 최고가: -</p>
+        </div>
+    </div>
+</div>
+
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script> 
 
@@ -74,11 +97,11 @@
 const SUPABASE_URL_FROM_WINDOW = window.SUPABASE_URL;
 const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
 
-let supabase = null; // Local variable for the client instance
-let currentUser = null; // 현재 로그인 사용자 정보
+let supabase = null; 
+let currentUser = null; 
 
 if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
-    // 💥 FIX 적용: window.supabase 객체에서 createClient 함수를 명시적으로 호출합니다.
+    // FIX 적용: window.supabase 객체에서 createClient 함수를 명시적으로 호출합니다.
     if (window.supabase && typeof window.supabase.createClient === 'function') {
         supabase = window.supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
             auth: { persistSession: false }
@@ -179,6 +202,11 @@ function renderProductCard(product, latestBid) {
                     <p class="text-2xl font-extrabold text-blue-600">₩ ${currentPrice.toLocaleString('ko-KR')}</p>
                     <p class="text-xs text-gray-400 mt-1">${bidCount}</p>
                 </div>
+
+                <button onclick="showBidModal(${product.id}, '${product.title.replace(/'/g, "\\'")}')" 
+                        class="w-full bg-gray-200 text-gray-700 py-1 mb-3 rounded-lg text-sm font-medium hover:bg-gray-300 transition duration-150 ease-in-out">
+                    입찰 내역 보기
+                </button>
                 
                 ${!isFinished ? `
                     <div class="flex items-center space-x-2 mb-4">
@@ -243,12 +271,13 @@ async function placeBid(productId) {
 
 
 // ----------------------------------------------------
-// 🔥 3. 실시간 업데이트 및 초기화
+// 🔥 3. 실시간 업데이트 및 구독
 // ----------------------------------------------------
 
 function subscribeToRealtime() {
     if (!supabase) return;
 
+    // 'bids' 테이블 변경 감지 (새 입찰 발생)
     supabase.channel('public:bids_changes')
         .on('postgres_changes', { 
             event: 'INSERT', 
@@ -256,10 +285,11 @@ function subscribeToRealtime() {
             table: 'bids' 
         }, payload => {
             console.log('새로운 입찰 감지:', payload);
-            loadProductsAndBids(); 
+            loadProductsAndBids(); // 전체 목록 새로고침
         })
         .subscribe();
     
+    // 'products' 테이블 변경 감지 (상품 등록, 마감 등)
     supabase.channel('public:products_changes')
         .on('postgres_changes', {
             event: '*', 
@@ -267,7 +297,7 @@ function subscribeToRealtime() {
             table: 'products' 
         }, payload => {
             console.log('상품 데이터 변경 감지:', payload);
-            loadProductsAndBids(); 
+            loadProductsAndBids(); // 전체 목록 새로고침
         })
         .subscribe();
 }
@@ -317,6 +347,74 @@ async function logout() {
     }
 }
 
+// ----------------------------------------------------
+// 🔥 5. 입찰 내역 모달 제어 함수
+// ----------------------------------------------------
+async function showBidModal(productId, productTitle) {
+    if (!supabase) return alert('Supabase 클라이언트 초기화 실패');
+
+    const modal = document.getElementById('bidHistoryModal');
+    const titleEl = document.getElementById('modalTitle');
+    const listEl = document.getElementById('bidHistoryList');
+    const highestEl = document.getElementById('currentHighestBid');
+
+    if (!modal || !listEl) return;
+
+    titleEl.textContent = `${productTitle} - 입찰 기록`;
+    listEl.innerHTML = '<p class="text-center text-blue-500 py-4">입찰 기록을 불러오는 중...</p>';
+    highestEl.textContent = '현재 최고가: -';
+    modal.style.display = 'flex'; 
+
+    const { data: bids, error } = await supabase
+        .from('bids')
+        .select('price, bidder_id, created_at')
+        .eq('product_id', productId)
+        .order('price', { ascending: false });
+
+    if (error) {
+        listEl.innerHTML = '<p class="text-center text-red-500 py-4">입찰 내역 로드 실패: ' + error.message + '</p>';
+        return;
+    }
+
+    if (!bids || bids.length === 0) {
+        const productData = await supabase.from('products').select('price_start').eq('id', productId).single();
+        const startPrice = productData.data?.price_start || 0;
+
+        highestEl.textContent = `현재 최고가: ₩ ${startPrice.toLocaleString('ko-KR')}`;
+        listEl.innerHTML = '<p class="text-center text-gray-500 py-4">아직 입찰 기록이 없습니다.</p>';
+        return;
+    }
+
+    const maxPrice = bids[0].price;
+    highestEl.textContent = `현재 최고가: ₩ ${maxPrice.toLocaleString('ko-KR')}`;
+
+    listEl.innerHTML = bids.map(bid => {
+        // 이메일 ID 앞 3글자만 보여주고 나머지는 마스킹 처리 (개인정보 보호)
+        const bidderPrefix = bid.bidder_id ? bid.bidder_id.substring(0, 3) : '익명';
+        const maskedEmail = bidderPrefix + '****'; 
+        const time = new Date(bid.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        
+        return `
+            <div class="flex justify-between items-center p-3 border rounded-md ${bid.price === maxPrice ? 'bg-yellow-50 border-yellow-300 font-bold' : 'bg-white'}">
+                <span class="text-lg text-blue-600">₩ ${bid.price.toLocaleString('ko-KR')}</span>
+                <div class="text-right">
+                    <span class="block text-sm text-gray-700">${maskedEmail}</span>
+                    <span class="block text-xs text-gray-500">${time}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function closeBidModal() {
+    const modal = document.getElementById('bidHistoryModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+
+// 페이지 로드 시 시작
 document.addEventListener('DOMContentLoaded', checkAuthAndInit);
 </script>
 
