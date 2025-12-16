@@ -73,7 +73,7 @@
         const key = window.SUPABASE_ANON_KEY;
         
         if (url && key && window.supabase && typeof window.supabase.createClient === 'function') {
-            // ⭐ 핵심: persistSession: true 설정으로 세션을 유지합니다.
+            // 핵심: persistSession: true 설정으로 세션을 유지합니다.
             supabaseClient = window.supabase.createClient(url, key, { 
                 auth: { persistSession: true, autoRefreshToken: true } 
             });
@@ -118,7 +118,7 @@
     }
 
     // ====================================================================
-    // B. 상품 등록 로직 (예시)
+    // B. 상품 등록 로직 (수정된 핵심 부분)
     // ====================================================================
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -151,7 +151,7 @@
 
         try {
             // 💡 이미지 업로드 로직 (간결성을 위해 스토리지 업로드는 생략하고 DB 등록만 예시)
-            const imageUrls = []; // 실제 구현 시: Supabase Storage에 파일 업로드 후 URL을 여기에 저장
+            const imageUrls = []; 
 
             // 1. DB에 상품 정보 등록
             const { data, error } = await supabaseClient
@@ -161,8 +161,14 @@
                     price_start: priceStart,
                     end_date: endDate,
                     description: description,
-                    seller_id: currentUser.id, // 현재 로그인한 사용자 ID 사용
-                    images: imageUrls, // 업로드된 이미지 URL
+                    
+                    // ⭐ 수정됨: seller_id에 사용자 ID 할당
+                    seller_id: currentUser.id, 
+                    
+                    // ⭐ 수정됨: creator_id에 사용자 ID 할당 (현재 오류 해결)
+                    creator_id: currentUser.id, 
+                    
+                    images: imageUrls, 
                     is_sold: false
                 }])
                 .select()
