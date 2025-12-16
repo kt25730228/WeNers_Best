@@ -118,7 +118,7 @@
     }
 
     // ====================================================================
-    // B. 상품 등록 로직 (수정된 핵심 부분)
+    // B. 상품 등록 로직 (creator_id 오류 해결됨)
     // ====================================================================
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -165,7 +165,7 @@
                     // ⭐ 수정됨: seller_id에 사용자 ID 할당
                     seller_id: currentUser.id, 
                     
-                    // ⭐ 수정됨: creator_id에 사용자 ID 할당 (현재 오류 해결)
+                    // ⭐ 수정됨: creator_id에 사용자 ID 할당 (이전 오류 해결 코드)
                     creator_id: currentUser.id, 
                     
                     images: imageUrls, 
