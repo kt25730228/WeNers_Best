@@ -1,80 +1,71 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<title>회원가입</title>
+<meta charset="UTF-8" />
+<title>회원가입 | WeNers</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+
 <style>
-  body { font-family: system-ui, -apple-system, sans-serif; width: 400px; margin: 50px auto; padding: 20px; background-color: #fff;}
-  h2 { font-size: 1.5rem; margin-bottom: 20px; color: #1f2937; }
-  input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-  button { width: 100%; padding: 10px; background: #2563eb; color: white; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background-color 0.15s; }
+body { font-family: system-ui, -apple-system, sans-serif; }
 </style>
 </head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
 
-<body>
-<div class="max-w-md mx-auto p-8 bg-white rounded-lg shadow-xl">
-    <h2 class="text-2xl font-bold text-center">✅ 회원가입</h2>
-    <form id="signupForm">
-        <input type="email" id="email" placeholder="이메일 입력" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/><br>
-        <input type="password" id="password" placeholder="비밀번호 입력" required class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/><br>
-        <button type="submit" class="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700">가입하기</button>
+<div class="w-full max-w-sm bg-white p-8 rounded-xl shadow-2xl">
+    <h2 class="text-3xl font-bold text-gray-800 text-center mb-8">회원가입</h2>
+
+    <form id="signupForm" onsubmit="signup(event)" class="space-y-4">
+        <div>
+            <label for="email" class="block text-sm font-medium text-gray-700">이메일 주소</label>
+            <input id="email" type="email" placeholder="사용할 이메일 입력" required
+                   class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
+        </div>
+        
+        <div>
+            <label for="password" class="block text-sm font-medium text-gray-700">비밀번호</label>
+            <input id="password" type="password" placeholder="6자리 이상 비밀번호 입력" required minlength="6"
+                   class="mt-1 w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
+        </div>
+
+        <button type="submit" id="signupBtn" 
+                class="w-full p-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition duration-150 ease-in-out">
+            회원가입 완료
+        </button>
     </form>
-    <p class="text-center text-sm mt-4">
-        <a href="auth_login.html" class="text-blue-600 hover:text-blue-800">이미 회원이신가요? 로그인하기</a>
+    
+    <p class="text-center mt-6 text-sm">
+        이미 계정이 있으신가요? 
+        <a href="auth_login.html" class="text-blue-500 hover:text-blue-700 font-medium">로그인하기</a>
     </p>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="config.js"></script> 
-
 <script>
-// config.js에서 전역으로 설정된 키/URL을 안전하게 가져옵니다.
-const SUPABASE_URL_FROM_WINDOW = window.SUPABASE_URL;
-const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
-let supabase;
+let supabase = window.supabase;
 
-if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
-    // FIX 적용: window.supabase 객체에서 createClient 함수를 명시적으로 호출합니다.
-    if (window.supabase && typeof window.supabase.createClient === 'function') {
-        supabase = window.supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
-            auth: { persistSession: false }
-        });
-    } else {
-        console.error('Supabase 라이브러리(createClient)를 찾을 수 없습니다. CDN 로드를 확인하세요.');
-    }
-} else {
-    console.error('Supabase 설정 (config.js)을 확인하세요.');
-}
+async function signup(e){
+    e.preventDefault();
+    if(!window.supabase) return alert('Supabase 클라이언트 초기화 실패. config.js를 확인하세요.');
 
-document.addEventListener("DOMContentLoaded", () => {
-    if (!supabase) return alert('Supabase 클라이언트 초기화 실패');
+    const emailEl = document.getElementById('email');
+    const passwordEl = document.getElementById('password');
     
-    const form = document.getElementById("signupForm");
+    const email = emailEl.value.trim();
+    const password = passwordEl.value;
 
-    if (form) {
-        form.addEventListener("submit", async(e)=>{
-            e.preventDefault();
-            
-            const email = document.getElementById("email")?.value.trim();
-            const password = document.getElementById("password")?.value;
-            
-            if (!email || !password) return alert('이메일과 비밀번호를 모두 입력해주세요.');
+    const { error } = await window.supabase.auth.signUp({
+        email: email,
+        password: password
+    });
 
-            const { error } = await supabase.auth.signUp({
-                email, password
-            });
-
-            if(error){
-                alert("회원가입 실패: " + error.message);
-                return;
-            }
-
-            alert("회원가입 성공! 이메일 인증 후 로그인 페이지로 이동합니다.");
-            location.href="auth_login.html";
-        });
-    }
-});
+    if(error) return alert("회원가입 실패: "+error.message);
+    
+    alert("회원가입 성공! 이메일 확인이 필요할 수 있습니다.");
+    // 회원가입 후 로그인 페이지로 이동
+    location.href="auth_login.html";
+}
 </script>
 </body>
 </html>
