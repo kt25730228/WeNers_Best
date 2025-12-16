@@ -7,7 +7,6 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; }
-  /* 애니메이션 스타일 (원본 유지) */
   @keyframes fadeA { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0.15; } }
   @keyframes fadeB { 0%, 45% { opacity: 0.15; } 55%, 100% { opacity: 1; } }
   .fade-a { animation: fadeA 3s infinite ease-in-out; }
@@ -71,17 +70,22 @@
 <script src="config.js"></script> 
 
 <script>
-// config.js에서 전역으로 설정된 키/URL을 'const' 없이 안전하게 가져옵니다.
+// config.js에서 전역으로 설정된 키/URL을 안전하게 가져옵니다.
 const SUPABASE_URL_FROM_WINDOW = window.SUPABASE_URL;
 const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
 
-let supabase = null;
+let supabase = null; // Local variable for the client instance
 let currentUser = null; // 현재 로그인 사용자 정보
 
 if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
-    supabase = supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
-        auth: { persistSession: false }
-    });
+    // 💥 FIX 적용: window.supabase 객체에서 createClient 함수를 명시적으로 호출합니다.
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabase = window.supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
+            auth: { persistSession: false }
+        });
+    } else {
+        console.error('Supabase 라이브러리(createClient)를 찾을 수 없습니다. CDN 로드를 확인하세요.');
+    }
 } else {
     console.error('Supabase 설정 (config.js)을 확인하세요.');
 }
@@ -90,7 +94,6 @@ if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
 // 🔥 1. 경매 데이터 로드 및 렌더링
 // ----------------------------------------------------
 
-/** 현재 상품의 최고 입찰가를 DB에서 조회합니다. */
 async function getLatestBid(productId) {
     if (!supabase) return null;
     const { data: bids, error } = await supabase
@@ -107,7 +110,6 @@ async function getLatestBid(productId) {
     return bids[0] || null;
 }
 
-/** 상품 목록 및 최고 입찰가를 불러와 UI를 업데이트하는 메인 함수 */
 async function loadProductsAndBids() {
     if (!supabase) return;
     const listEl = document.getElementById('product-list');
@@ -115,7 +117,6 @@ async function loadProductsAndBids() {
     
     listEl.innerHTML = '<p class="text-center col-span-full py-10 text-gray-500">상품을 불러오는 중...</p>';
 
-    // 1. 상품 목록 불러오기 (판매되지 않은 상품 & 마감 임박 순)
     const { data: products, error: productError } = await supabase
         .from('products')
         .select('*')
@@ -132,7 +133,6 @@ async function loadProductsAndBids() {
         return;
     }
     
-    // 2. 각 상품별 최고 입찰가 로드 및 카드 생성
     let html = '';
     for (const product of products) {
         const latestBid = await getLatestBid(product.id);
@@ -141,19 +141,16 @@ async function loadProductsAndBids() {
     listEl.innerHTML = html;
 }
 
-/** Supabase 데이터를 받아 Tailwind 카드 HTML을 생성합니다. */
 function renderProductCard(product, latestBid) {
     const isEvent = product.type === 'event';
     const currentPrice = latestBid ? latestBid.price : product.price_start;
     const bidCount = latestBid ? '입찰 1회 이상' : '첫 입찰을 기다립니다';
     
-    // 이미지 처리
     let imageUrl = '';
     if (product.images && product.images.length > 0) {
         imageUrl = Array.isArray(product.images) ? product.images[0] : product.images;
     }
 
-    // 마감 시간 계산 및 포맷
     const endDate = new Date(product.end_date);
     const timeRemainingSeconds = (endDate - new Date()) / 1000;
     const hoursRemaining = Math.floor(timeRemainingSeconds / 3600);
@@ -207,7 +204,6 @@ function renderProductCard(product, latestBid) {
 // 🔥 2. 입찰 로직 (Supabase DB 저장)
 // ----------------------------------------------------
 async function placeBid(productId) {
-    // 1. 로그인 확인
     if (!currentUser) {
         alert('로그인 후 입찰할 수 있습니다. 로그인 페이지로 이동합니다.');
         return window.location.href = 'auth_login.html';
@@ -216,24 +212,19 @@ async function placeBid(productId) {
     const bidInput = document.getElementById(`bid-input-${productId}`);
     const bidAmount = Number(bidInput.value);
 
-    // 2. 입력값 유효성 검사
     if (isNaN(bidAmount) || bidAmount <= 0) {
         return alert('유효한 금액을 입력해 주세요.');
     }
 
-    // 3. 현재 최고가 확인 및 검증
     const latestBid = await getLatestBid(productId);
-    
     const productData = await supabase.from('products').select('price_start').eq('id', productId).single();
     const priceStart = productData.data?.price_start || 0;
-    
     const currentPrice = latestBid ? latestBid.price : priceStart;
     
     if (bidAmount <= currentPrice) {
         return alert(`현재 최고가(${currentPrice.toLocaleString('ko-KR')}원)보다 높은 금액을 입력해야 합니다.`);
     }
 
-    // 4. Supabase 'bids' 테이블에 데이터 삽입
     const { error } = await supabase
         .from('bids')
         .insert([{ 
@@ -255,11 +246,9 @@ async function placeBid(productId) {
 // 🔥 3. 실시간 업데이트 및 초기화
 // ----------------------------------------------------
 
-/** Supabase Realtime 채널을 구독하여 데이터 변경 시 목록을 새로고침합니다. */
 function subscribeToRealtime() {
     if (!supabase) return;
 
-    // 'bids' 테이블 변경 감지 (새 입찰 발생)
     supabase.channel('public:bids_changes')
         .on('postgres_changes', { 
             event: 'INSERT', 
@@ -267,11 +256,10 @@ function subscribeToRealtime() {
             table: 'bids' 
         }, payload => {
             console.log('새로운 입찰 감지:', payload);
-            loadProductsAndBids(); // 전체 목록 새로고침
+            loadProductsAndBids(); 
         })
         .subscribe();
     
-    // 'products' 테이블 변경 감지 (상품 등록, 마감 등)
     supabase.channel('public:products_changes')
         .on('postgres_changes', {
             event: '*', 
@@ -279,7 +267,7 @@ function subscribeToRealtime() {
             table: 'products' 
         }, payload => {
             console.log('상품 데이터 변경 감지:', payload);
-            loadProductsAndBids(); // 전체 목록 새로고침
+            loadProductsAndBids(); 
         })
         .subscribe();
 }
@@ -288,7 +276,6 @@ function subscribeToRealtime() {
 // 🔥 4. 인증 및 UI 관리
 // ----------------------------------------------------
 
-/** 인증 상태를 확인하고 네비게이션 UI를 업데이트합니다. */
 async function checkAuthAndInit() {
     if (!supabase) return;
     
@@ -302,14 +289,12 @@ async function checkAuthAndInit() {
     const createBtn = document.getElementById('createProductBtn');
 
     if (currentUser) {
-        // 로그인 상태
         if (loginBtn) loginBtn.style.display = 'none';
         if (signupBtn) signupBtn.style.display = 'none';
         if (logoutBtn) logoutBtn.style.display = 'inline-flex';
         if (userBox) userBox.textContent = `환영합니다, ${currentUser.email.split('@')[0]}님!`;
         if (createBtn) createBtn.href = 'create_with_image_upload_auth.html'; 
     } else {
-        // 비로그인 상태
         if (loginBtn) loginBtn.style.display = 'inline-flex';
         if (signupBtn) signupBtn.style.display = 'inline-flex';
         if (logoutBtn) logoutBtn.style.display = 'none';
@@ -317,12 +302,10 @@ async function checkAuthAndInit() {
         if (createBtn) createBtn.href = 'auth_login.html'; 
     }
     
-    // 데이터 로드 및 실시간 구독 시작
     loadProductsAndBids();
     subscribeToRealtime();
 }
 
-/** 로그아웃 처리 */
 async function logout() {
     if (!supabase) return;
     const { error } = await supabase.auth.signOut();
@@ -334,7 +317,6 @@ async function logout() {
     }
 }
 
-// 페이지 로드 시 시작
 document.addEventListener('DOMContentLoaded', checkAuthAndInit);
 </script>
 
