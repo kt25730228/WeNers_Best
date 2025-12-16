@@ -5,7 +5,7 @@
 <title>로그인 | WeNers</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
-  /* Tailwind를 사용하지 않는 경우를 대비한 기본 스타일 (옵션) */
+  /* Tailwind를 사용하지 않는 경우를 대비한 기본 스타일 */
   body { font-family: system-ui, -apple-system, sans-serif; width: 400px; margin: 50px auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; background-color: #fff;}
   h2 { font-size: 1.5rem; margin-bottom: 20px; color: #1f2937; }
   input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
@@ -38,16 +38,16 @@
 <script src="config.js"></script>
 
 <script>
-// config.js에서 전역으로 설정된 키/URL을 가져옵니다.
-const SUPABASE_URL = window.SUPABASE_URL;
-const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+// config.js에서 전역으로 설정된 키/URL을 안전하게 가져옵니다.
+const SUPABASE_URL_FROM_WINDOW = window.SUPABASE_URL;
+const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
 
 let supabase;
 
-if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
     // Supabase 클라이언트 객체를 생성합니다.
-    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-        auth: { persistSession: false } // 세션 자동 유지 방지
+    supabase = supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
+        auth: { persistSession: false } 
     });
 } else {
     console.error('Supabase 설정 (config.js)을 확인하세요.');
@@ -79,7 +79,6 @@ async function login(){
     });
 
     if(error) {
-        // 비밀번호 오류 등 구체적인 에러 메시지 표시
         return alert("로그인 실패: " + error.message);
     }
     
