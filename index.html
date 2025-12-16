@@ -7,23 +7,12 @@
 <script src="https://cdn.tailwindcss.com"></script>
 <style>
   body { font-family: system-ui, -apple-system, sans-serif; }
-
-  /* 기존에 있던 애니메이션 스타일 유지 */
-  @keyframes fadeA {
-    0%, 45% { opacity: 1; }
-    55%, 100% { opacity: 0.15; }
-  }
-  @keyframes fadeB {
-    0%, 45% { opacity: 0.15; }
-    55%, 100% { opacity: 1; }
-  }
+  /* 애니메이션 스타일 (원본 유지) */
+  @keyframes fadeA { 0%, 45% { opacity: 1; } 55%, 100% { opacity: 0.15; } }
+  @keyframes fadeB { 0%, 45% { opacity: 0.15; } 55%, 100% { opacity: 1; } }
   .fade-a { animation: fadeA 3s infinite ease-in-out; }
   .fade-b { animation: fadeB 3s infinite ease-in-out; }
-  @keyframes float {
-    0% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
-    100% { transform: translateY(0px); }
-  }
+  @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-10px); } 100% { transform: translateY(0px); } }
   .animate-float { animation: float 4s ease-in-out infinite; }
   .animate-float-delay { animation: float 4s ease-in-out infinite; animation-delay: 2s; }
 </style>
@@ -82,15 +71,15 @@
 <script src="config.js"></script> 
 
 <script>
-// config.js 에서 가져온 KEY를 사용하여 Supabase 클라이언트 초기화
-const SUPABASE_URL = window.SUPABASE_URL;
-const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+// config.js에서 전역으로 설정된 키/URL을 'const' 없이 안전하게 가져옵니다.
+const SUPABASE_URL_FROM_WINDOW = window.SUPABASE_URL;
+const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
+
 let supabase = null;
 let currentUser = null; // 현재 로그인 사용자 정보
 
-if (SUPABASE_URL && SUPABASE_ANON_KEY) {
-    // 세션 유지(persistSession)를 false로 하여 매번 로그인 상태를 확인하도록 설정
-    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
+    supabase = supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
         auth: { persistSession: false }
     });
 } else {
@@ -104,7 +93,6 @@ if (SUPABASE_URL && SUPABASE_ANON_KEY) {
 /** 현재 상품의 최고 입찰가를 DB에서 조회합니다. */
 async function getLatestBid(productId) {
     if (!supabase) return null;
-    // bids 테이블에서 해당 상품 ID의 입찰가를 내림차순으로 1개만 가져옴
     const { data: bids, error } = await supabase
         .from('bids')
         .select('price, bidder_id, created_at')
@@ -159,13 +147,10 @@ function renderProductCard(product, latestBid) {
     const currentPrice = latestBid ? latestBid.price : product.price_start;
     const bidCount = latestBid ? '입찰 1회 이상' : '첫 입찰을 기다립니다';
     
-    // 이미지 처리: DB의 images 필드가 배열일 수도, 단일 URL일 수도 있음
+    // 이미지 처리
     let imageUrl = '';
     if (product.images && product.images.length > 0) {
-        // 배열이면 첫 번째 요소 사용, 아니면 그대로 사용
         imageUrl = Array.isArray(product.images) ? product.images[0] : product.images;
-        // Supabase Storage에 이미지를 올렸다면, Public URL 경로를 자동으로 완성해 줍니다.
-        // 이 로직은 `create_with_image_upload_auth.html`에서 이미 Public URL을 DB에 저장한다고 가정
     }
 
     // 마감 시간 계산 및 포맷
@@ -239,7 +224,6 @@ async function placeBid(productId) {
     // 3. 현재 최고가 확인 및 검증
     const latestBid = await getLatestBid(productId);
     
-    // 최고 입찰가가 없으면 시작가를 기준으로 함
     const productData = await supabase.from('products').select('price_start').eq('id', productId).single();
     const priceStart = productData.data?.price_start || 0;
     
@@ -254,7 +238,7 @@ async function placeBid(productId) {
         .from('bids')
         .insert([{ 
             product_id: productId, 
-            bidder_id: currentUser.id, // 로그인된 사용자 ID 사용
+            bidder_id: currentUser.id, 
             price: bidAmount 
         }]);
 
@@ -264,7 +248,6 @@ async function placeBid(productId) {
 
     alert('입찰 성공! 실시간으로 반영됩니다.');
     bidInput.value = ''; 
-    // Realtime 구독을 통해 UI가 자동으로 업데이트됩니다.
 }
 
 
@@ -323,16 +306,15 @@ async function checkAuthAndInit() {
         if (loginBtn) loginBtn.style.display = 'none';
         if (signupBtn) signupBtn.style.display = 'none';
         if (logoutBtn) logoutBtn.style.display = 'inline-flex';
-        // 이메일에서 @ 앞 부분만 추출하여 표시
         if (userBox) userBox.textContent = `환영합니다, ${currentUser.email.split('@')[0]}님!`;
-        if (createBtn) createBtn.href = 'create_with_image_upload_auth.html'; // 상품 등록 페이지 링크
+        if (createBtn) createBtn.href = 'create_with_image_upload_auth.html'; 
     } else {
         // 비로그인 상태
         if (loginBtn) loginBtn.style.display = 'inline-flex';
         if (signupBtn) signupBtn.style.display = 'inline-flex';
         if (logoutBtn) logoutBtn.style.display = 'none';
         if (userBox) userBox.textContent = '';
-        if (createBtn) createBtn.href = 'auth_login.html'; // 로그인 유도
+        if (createBtn) createBtn.href = 'auth_login.html'; 
     }
     
     // 데이터 로드 및 실시간 구독 시작
@@ -348,7 +330,7 @@ async function logout() {
         alert('로그아웃 실패: ' + error.message);
     } else {
         alert('로그아웃 성공');
-        window.location.reload(); // 새로고침하여 비로그인 상태로 복귀
+        window.location.reload(); 
     }
 }
 
