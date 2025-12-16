@@ -3,129 +3,178 @@
 <head>
 <meta charset="UTF-8">
 <title>상품등록 (이미지 업로드) - WeNers</title>
-
+<script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
 
 <style>
-body { font-family: Arial; width: 400px; margin: 30px auto;}
-input, textarea {width: 100%; padding: 8px; margin-bottom:10px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;}
-button { width: 100%; padding:10px; background:#0066ff;color:white; font-weight:bold; border: none; border-radius: 4px; cursor: pointer;}
+body { font-family: system-ui, -apple-system, sans-serif; }
 </style>
 </head>
-<body>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center p-4">
 
-<h2>🛒 신규 상품 등록</h2>
-<p class="text-sm text-gray-500 mb-4">로그인해야 등록할 수 있습니다.</p>
+<div class="w-full max-w-lg bg-white p-8 rounded-xl shadow-2xl">
+    <h2 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-3">🛒 신규 상품 등록</h2>
 
-<input id="title" placeholder="상품 제목"/>
-<textarea id="desc" placeholder="설명"></textarea>
-<input id="price_start" type="number" placeholder="시작가 (필수)"/>
-<input id="price_end" type="number" placeholder="즉시구매가 (선택)"/>
-<label for="end_date" class="text-sm text-gray-700 block mt-2">경매 마감일시:</label>
-<input id="end_date" type="datetime-local" required/>
-<input id="image" type="file" class="mt-4"/>
+    <form id="productForm" onsubmit="submitProduct(event)" class="space-y-4">
+        <input id="title" name="title" placeholder="상품 제목" required 
+               class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
+        
+        <textarea id="desc" name="desc" placeholder="상품 상세 설명" rows="4" required
+                  class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"></textarea>
+        
+        <div class="grid grid-cols-2 gap-4">
+            <input id="price_start" name="price_start" type="number" placeholder="경매 시작가 (₩)" required min="0" 
+                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
+            <input id="price_end" name="price_end" type="number" placeholder="즉시 구매가 (선택)" 
+                   class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
+        </div>
 
-<button onclick="submitProduct()">📌 상품 등록</button>
-<p><a href="index.html">← 목록으로</a></p>
+        <div class="grid grid-cols-2 gap-4">
+            <div class="relative">
+                <input id="end_date" name="end_date" type="datetime-local" required 
+                       class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500"/>
+                <label for="end_date" class="absolute left-3 -top-2.5 bg-white px-1 text-xs text-gray-500">경매 마감 일시</label>
+            </div>
+            
+            <select id="type" name="type" required 
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500">
+                <option value="general">일반 경매</option>
+                <option value="event">이벤트 경매</option>
+            </select>
+        </div>
+        
+        <label class="block text-sm font-medium text-gray-700 pt-2">상품 이미지 (최대 5개)</label>
+        <input id="images" name="images" type="file" multiple accept="image/*" required
+               class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"/>
+
+        <button type="submit" id="submitBtn" 
+                class="w-full p-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition duration-150 ease-in-out disabled:bg-gray-400">
+            📌 상품 등록
+        </button>
+    </form>
+    
+    <p class="text-center mt-4"><a href="index.html" class="text-blue-500 hover:text-blue-700">← 목록으로 돌아가기</a></p>
+</div>
+
 
 <script>
-// Supabase 초기화 로직
+// config.js에서 전역으로 설정된 키/URL을 안전하게 가져옵니다.
 const SUPABASE_URL_FROM_WINDOW = window.SUPABASE_URL;
 const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
-let supabase;
-let currentUser = null;
+
+let supabase = null; 
+let currentUser = null; 
 
 if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
-    // FIX 적용: window.supabase 객체에서 createClient 함수를 명시적으로 호출합니다.
     if (window.supabase && typeof window.supabase.createClient === 'function') {
         supabase = window.supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
             auth: { persistSession: false }
         });
-    } else {
-        console.error('Supabase 라이브러리(createClient)를 찾을 수 없습니다. CDN 로드를 확인하세요.');
     }
-} else {
-    console.error('Supabase 설정 (config.js)을 확인하세요.');
 }
 
-// ----------------------------------------------------
-// 🔥 상품 등록 로직
-// ----------------------------------------------------
-async function submitProduct() {
-    if (!supabase) return alert('Supabase 클라이언트 초기화 실패');
-    if (!currentUser) return alert('로그인이 필요합니다.');
-
-    const fileInput = document.getElementById('image');
-    const title = document.getElementById('title')?.value.trim();
-    const price_start = Number(document.getElementById('price_start')?.value) || 0;
-    const end_date = document.getElementById('end_date')?.value;
-    
-    const file = fileInput?.files[0];
-    
-    if (!title || !price_start || !end_date) return alert('제목, 시작가, 마감일은 필수 입력 항목입니다.');
-
-    // 이미지 업로드
-    let imageUrl = '';
-    if (file) {
-        try {
-            const fileName = currentUser.id + '/' + Date.now() + '_' + file.name.replace(/\s+/g, '_');
-            const bucket = 'product-images';
-            
-            const { error: uploadErr } = await supabase.storage.from(bucket).upload(fileName, file);
-            if (uploadErr) {
-                console.error(uploadErr);
-                return alert('이미지 업로드 실패: ' + uploadErr.message);
-            }
-            
-            const { data: pu } = supabase.storage.from(bucket).getPublicUrl(fileName);
-            imageUrl = pu.publicUrl;
-
-        } catch (err) {
-            console.error(err);
-            return alert('이미지 처리 중 치명적인 오류 발생');
-        }
-    }
-    
-    // 기타 필드 수집
-    const description = document.getElementById('desc')?.value.trim();
-    const price_buy_now = Number(document.getElementById('price_end')?.value) || null; 
-
-    // Supabase 'products' 테이블에 데이터 삽입
-    const { error } = await supabase.from('products').insert([{ 
-        title, 
-        description, 
-        price_start, 
-        price_buy_now, 
-        end_date,
-        images: imageUrl ? [imageUrl] : [], 
-        creator_id: currentUser.id 
-    }]);
-
-    if(error) {
-        return alert('DB 저장 실패: ' + error.message);
-    }
-
-    alert('상품 등록 완료');
-    window.location.href = 'index.html';
-}
-
-// ----------------------------------------------------
-// 🔥 인증 확인 
-// ----------------------------------------------------
+// 초기 인증 확인 및 리디렉션
 async function checkAuth() {
-    if (!supabase) return;
+    if (!supabase) return alert('Supabase 설정 필요');
     
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session }, error } = await supabase.auth.getSession();
     currentUser = session ? session.user : null;
-    
+
     if (!currentUser) {
-        alert('상품 등록은 로그인 후 이용 가능합니다.');
-        location.href = 'auth_login.html';
+        alert('로그인이 필요합니다.');
+        window.location.href = 'auth_login.html';
+        return;
+    }
+}
+
+async function submitProduct(e) {
+    e.preventDefault();
+    if (!currentUser) return alert('로그인이 필요합니다.');
+    
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.textContent = '업로드 중... (잠시만 기다려주세요)';
+
+    try {
+        const title = document.getElementById('title').value.trim();
+        const description = document.getElementById('desc').value.trim();
+        const price_start = Number(document.getElementById('price_start').value) || 0;
+        const price_end = document.getElementById('price_end').value ? Number(document.getElementById('price_end').value) : null;
+        const end_date = document.getElementById('end_date').value;
+        const type = document.getElementById('type').value;
+        const files = document.getElementById('images').files;
+
+        if (files.length === 0) {
+            alert('이미지를 하나 이상 선택하세요.');
+            return;
+        }
+
+        if (files.length > 5) {
+            alert('이미지는 최대 5개까지 업로드할 수 있습니다.');
+            return;
+        }
+
+        const imageUrls = [];
+        const bucket = 'product-images';
+
+        // 이미지 개수만큼 반복하여 업로드
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            // 파일 이름 중복 방지를 위해 Timestamp + Index + Original Name 사용
+            const fileName = `${Date.now()}_${i}_${file.name.replace(/\s+/g, '_')}`; 
+            
+            // 파일 업로드
+            const { error: uploadErr } = await supabase.storage
+                .from(bucket)
+                .upload(fileName, file, {
+                    cacheControl: '3600',
+                    upsert: false
+                });
+
+            if (uploadErr) {
+                console.error(`이미지 ${i + 1} 업로드 실패:`, uploadErr);
+                throw new Error(`이미지 업로드 실패: ${uploadErr.message}`);
+            }
+
+            // Public URL 가져오기
+            const { data: publicUrlData } = supabase.storage
+                .from(bucket)
+                .getPublicUrl(fileName);
+            
+            imageUrls.push(publicUrlData.publicUrl);
+        }
+
+        // DB에 상품 정보 및 이미지 URL 배열 저장
+        const { error: dbError } = await supabase.from('products').insert([{ 
+            title, 
+            description, 
+            price_start, 
+            price_end, 
+            end_date,
+            type,
+            images: imageUrls, // 🔥 이미지 URL 배열 저장
+            user_id: currentUser.id // 등록자 ID 저장 (필수)
+        }]);
+
+        if (dbError) {
+            throw new Error('DB 저장 실패: ' + dbError.message);
+        }
+
+        alert('상품 등록 완료!');
+        window.location.href = 'index.html';
+
+    } catch (err) {
+        console.error(err);
+        alert(err.message || '상품 등록 중 알 수 없는 오류가 발생했습니다.');
+    } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = '📌 상품 등록';
     }
 }
 
 document.addEventListener('DOMContentLoaded', checkAuth);
 </script>
+
 </body>
 </html>
