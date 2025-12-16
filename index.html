@@ -99,6 +99,8 @@ const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
 
 let supabase = null; 
 let currentUser = null; 
+let auctionEndDates = new Map(); // 상품 마감 시간을 저장할 Map
+let timerInterval = null;        // 타이머 인터벌 ID
 
 if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
     // FIX 적용: window.supabase 객체에서 createClient 함수를 명시적으로 호출합니다.
@@ -139,6 +141,7 @@ async function loadProductsAndBids() {
     if (!listEl) return;
     
     listEl.innerHTML = '<p class="text-center col-span-full py-10 text-gray-500">상품을 불러오는 중...</p>';
+    auctionEndDates.clear(); // 기존 타이머 데이터 초기화
 
     const { data: products, error: productError } = await supabase
         .from('products')
@@ -158,10 +161,15 @@ async function loadProductsAndBids() {
     
     let html = '';
     for (const product of products) {
+        // 🔥 마감 시간 저장 (밀리초)
+        auctionEndDates.set(product.id, new Date(product.end_date).getTime());
+
         const latestBid = await getLatestBid(product.id);
         html += renderProductCard(product, latestBid);
     }
     listEl.innerHTML = html;
+
+    updateTimers(); // 상품 로드 직후 타이머 초기화
 }
 
 function renderProductCard(product, latestBid) {
@@ -174,27 +182,25 @@ function renderProductCard(product, latestBid) {
         imageUrl = Array.isArray(product.images) ? product.images[0] : product.images;
     }
 
-    const endDate = new Date(product.end_date);
-    const timeRemainingSeconds = (endDate - new Date()) / 1000;
-    const hoursRemaining = Math.floor(timeRemainingSeconds / 3600);
-    const minutesRemaining = Math.floor((timeRemainingSeconds % 3600) / 60);
+    const isFinished = new Date(product.end_date) <= new Date();
 
-    const timerText = timeRemainingSeconds > 0 
-        ? `${hoursRemaining}시간 ${minutesRemaining}분 남음`
-        : '<span class="text-red-500 font-bold">경매 마감</span>';
-    
-    const isFinished = timeRemainingSeconds <= 0;
+    // 🔥 타이머를 표시할 ID를 가진 placeholder 사용
+    const timerHtml = `<span id="timer-${product.id}" class="text-xs text-gray-500">계산 중...</span>`;
 
     return `
         <div class="bg-white rounded-xl shadow-lg hover:shadow-2xl transition-shadow duration-300 overflow-hidden ${isFinished ? 'opacity-70 grayscale' : ''}" data-product-id="${product.id}">
-            ${imageUrl ? `<img class="w-full h-48 object-cover" src="${imageUrl}" alt="${product.title}">` : `<div class="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">이미지 없음</div>`}
+            <a href="detail.html?id=${product.id}">
+                ${imageUrl ? `<img class="w-full h-48 object-cover hover:opacity-80 transition" src="${imageUrl}" alt="${product.title}">` : `<div class="w-full h-48 bg-gray-200 flex items-center justify-center text-gray-500">이미지 없음</div>`}
+            </a>
             
             <div class="p-5">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-xs font-semibold px-2 py-1 rounded-full ${isEvent ? 'bg-yellow-100 text-yellow-700' : 'bg-indigo-100 text-indigo-700'}">${isEvent ? '이벤트 경매' : '일반 경매'}</span>
-                    <span class="text-xs text-gray-500">${timerText}</span>
+                    ${timerHtml}
                 </div>
-                <h3 class="text-xl font-bold text-gray-800 truncate">${product.title}</h3>
+                <a href="detail.html?id=${product.id}" class="hover:text-blue-600 transition duration-150">
+                    <h3 class="text-xl font-bold text-gray-800 truncate">${product.title}</h3>
+                </a>
                 <p class="text-sm text-gray-600 mb-4">${product.description || '상품 설명이 없습니다.'}</p>
                 
                 <div class="border-t border-b py-3 mb-4">
@@ -303,6 +309,51 @@ function subscribeToRealtime() {
 }
 
 // ----------------------------------------------------
+// 🔥 3.1. 타이머 업데이트 로직 (1초마다 실행)
+// ----------------------------------------------------
+
+function updateTimers() {
+    const now = new Date().getTime();
+
+    auctionEndDates.forEach((endTime, productId) => {
+        const remainingTime = endTime - now;
+        const timerEl = document.getElementById(`timer-${productId}`);
+        
+        if (!timerEl) return; 
+
+        if (remainingTime <= 0) {
+            // 경매 마감 처리
+            timerEl.innerHTML = '<span class="text-red-500 font-bold">경매 마감</span>';
+            // 경매 마감 시 버튼 비활성화를 위해 목록을 다시 불러오는 것이 안전함. (실시간 구독으로도 처리 가능)
+            if (timerEl.dataset.finished !== 'true') {
+                 timerEl.dataset.finished = 'true';
+                 loadProductsAndBids(); 
+            }
+        } else {
+            const days = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((remainingTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
+
+            let timeString = '';
+            if (days > 0) {
+                timeString += `${days}일 `;
+            }
+            timeString += `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} 남음`;
+            
+            timerEl.textContent = timeString;
+            
+            // 1시간(3600000ms) 미만 시 긴급성 강조
+            if (remainingTime < 3600000) { 
+                timerEl.classList.add('text-red-600', 'font-bold');
+            } else {
+                timerEl.classList.remove('text-red-600', 'font-bold');
+            }
+        }
+    });
+}
+
+// ----------------------------------------------------
 // 🔥 4. 인증 및 UI 관리
 // ----------------------------------------------------
 
@@ -334,6 +385,10 @@ async function checkAuthAndInit() {
     
     loadProductsAndBids();
     subscribeToRealtime();
+    
+    // 🔥 1초마다 타이머 갱신 시작
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(updateTimers, 1000);
 }
 
 async function logout() {
@@ -365,6 +420,7 @@ async function showBidModal(productId, productTitle) {
     highestEl.textContent = '현재 최고가: -';
     modal.style.display = 'flex'; 
 
+    // 입찰 내역 조회 (가격 내림차순)
     const { data: bids, error } = await supabase
         .from('bids')
         .select('price, bidder_id, created_at')
@@ -392,7 +448,7 @@ async function showBidModal(productId, productTitle) {
         // 이메일 ID 앞 3글자만 보여주고 나머지는 마스킹 처리 (개인정보 보호)
         const bidderPrefix = bid.bidder_id ? bid.bidder_id.substring(0, 3) : '익명';
         const maskedEmail = bidderPrefix + '****'; 
-        const time = new Date(bid.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
+        const time = new Date(bid.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
         
         return `
             <div class="flex justify-between items-center p-3 border rounded-md ${bid.price === maxPrice ? 'bg-yellow-50 border-yellow-300 font-bold' : 'bg-white'}">
