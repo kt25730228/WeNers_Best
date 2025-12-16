@@ -3,38 +3,56 @@
 <head>
 <meta charset="UTF-8">
 <title>회원가입</title>
-<script type="module">
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script> 
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-  auth:{ persistSession:false, autoRefreshToken:false }
-});
+<script>
+// Supabase 초기화 로직
+const SUPABASE_URL = window.SUPABASE_URL;
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
+let supabase;
+
+if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false }
+    });
+} else {
+    console.error('Supabase 설정 (config.js)을 확인하세요.');
+}
 
 document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("signupForm");
+    if (!supabase) return alert('Supabase 클라이언트 초기화 실패');
+    
+    // 폼 대신 버튼을 사용한 경우를 가정하고 이벤트 리스너를 붙입니다.
+    const form = document.getElementById("signupForm") || document.querySelector('button[onclick*="signup"]')?.closest('form');
 
-  form.addEventListener("submit", async(e)=>{
-    e.preventDefault();
+    if (form) {
+        form.addEventListener("submit", async(e)=>{
+            e.preventDefault();
+            
+            const email = document.getElementById("email")?.value.trim();
+            const password = document.getElementById("password")?.value;
+            
+            if (!email || !password) return alert('이메일과 비밀번호를 모두 입력해주세요.');
 
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
+            //----------------------
+            // 🔥 회원가입 실행
+            //----------------------
+            const { error } = await supabase.auth.signUp({
+                email, password
+            });
 
-    //----------------------
-    // 🔥 회원가입 실행
-    //----------------------
-    const { data, error } = await supabase.auth.signUp({
-      email, password
-    });
+            if(error){
+                alert("회원가입 실패: " + error.message);
+                return;
+            }
 
-    if(error){
-      alert("회원가입 실패: " + error.message);
-      return;
+            alert("회원가입 성공! 이메일 인증 후 로그인 페이지로 이동합니다.");
+            location.href="auth_login.html";
+        });
+    } else {
+        console.warn("회원가입 폼을 찾을 수 없습니다.");
     }
-
-    alert("회원가입 성공!\n로그인 페이지로 이동합니다.");
-    location.href="auth_login.html";
-  });
 });
 </script>
 </head>
@@ -48,3 +66,4 @@ document.addEventListener("DOMContentLoaded", () => {
 </form>
 </body>
 </html>
+
