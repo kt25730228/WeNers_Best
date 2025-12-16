@@ -3,82 +3,105 @@
 <head>
 <meta charset="UTF-8" />
 <title>로그인 | WeNers</title>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  /* Tailwind를 사용하지 않는 경우를 대비한 기본 스타일 (옵션) */
+  body { font-family: system-ui, -apple-system, sans-serif; width: 400px; margin: 50px auto; padding: 20px; border: 1px solid #eee; border-radius: 8px; background-color: #fff;}
+  h2 { font-size: 1.5rem; margin-bottom: 20px; color: #1f2937; }
+  input { width: 100%; padding: 10px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+  button { width: 100%; padding: 10px; background: #2563eb; color: white; font-weight: bold; border-radius: 4px; cursor: pointer; transition: background-color 0.15s; }
+  button:hover { background-color: #1d4ed8; }
+  p { margin-top: 15px; text-align: center; }
+  a { color: #2563eb; text-decoration: none; }
+</style>
 </head>
 <body>
 
-<h2>로그인</h2>
+<div class="max-w-md mx-auto p-8 bg-white rounded-lg shadow-xl">
+    <h2 class="text-2xl font-bold text-center">🔐 로그인</h2>
+    
+    <input id="email" type="email" placeholder="이메일 입력" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/><br>
+    <input id="password" type="password" placeholder="비밀번호 입력" class="w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"/><br>
+    
+    <button id="btnLogin" onclick="login()" class="w-full bg-blue-600 text-white py-2 rounded-md hover:bg-blue-700">로그인</button>
+    
+    <p class="text-center text-sm mt-4">
+        <a href="auth_signup.html" class="text-blue-600 hover:text-blue-800">아직 회원이 아니신가요? 회원가입하기</a>
+    </p>
+    <p class="text-center text-sm">
+        <a href="index.html" class="text-gray-500 hover:text-gray-700">← 메인 페이지로 돌아가기</a>
+    </p>
+</div>
 
-<input id="email" type="email" placeholder="이메일 입력" /><br>
-<input id="password" type="password" placeholder="비밀번호 입력" /><br>
 
-<button onclick="login()">로그인</button>
-<p><a href="auth_signup.html">회원가입하기</a></p>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
 
 <script>
-const supabase = supabase.createClient(
-    "https://YOUR-PROJECT.supabase.co",
-    "YOUR-ANON-KEY"
-);
+// config.js에서 전역으로 설정된 키/URL을 가져옵니다.
+const SUPABASE_URL = window.SUPABASE_URL;
+const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
 
-async function login(){
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.value,
-        password: password.value
+let supabase;
+
+if (SUPABASE_URL && SUPABASE_ANON_KEY) {
+    // Supabase 클라이언트 객체를 생성합니다.
+    supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        auth: { persistSession: false } // 세션 자동 유지 방지
     });
-
-    if(error) return alert("로그인 실패: "+error.message);
-    alert("로그인 성공!");
-    location.href="weners_with_bids_realtime_auth.html";
-}
-</script>
-
-
-<script type="module">
-// Minimal Supabase client init (persistSession:false to avoid auto login restore)
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-let SUPABASE_URL, SUPABASE_ANON_KEY;
-try{
-  const mod = await import('./config.js').catch(()=>null);
-  if(mod && (mod.SUPABASE_URL || mod.default?.SUPABASE_URL)){
-    SUPABASE_URL = mod.SUPABASE_URL || mod.default?.SUPABASE_URL;
-    SUPABASE_ANON_KEY = mod.SUPABASE_ANON_KEY || mod.default?.SUPABASE_ANON_KEY;
-  } else {
-    SUPABASE_URL = window.SUPABASE_URL;
-    SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
-  }
-}catch(e){
-  SUPABASE_URL = window.SUPABASE_URL;
-  SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
-}
-if(SUPABASE_URL && SUPABASE_ANON_KEY){
-  window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth:{ persistSession:false, autoRefreshToken:false } });
 } else {
-  console.warn('Supabase config not found.');
+    console.error('Supabase 설정 (config.js)을 확인하세요.');
+    alert('Supabase 설정이 올바르지 않습니다. config.js를 확인하세요.');
 }
-</script>
 
-<script>
-(async ()=>{
-  try{
-    const btn = document.getElementById('btnLogin') || document.querySelector('button[type=submit]') || document.querySelector('button#loginBtn');
-    if(!btn) return;
-    btn.addEventListener('click', async (e)=>{
-      try{
-        if(!window.supabase) return alert('Supabase 설정 필요');
-        const email = (document.getElementById('email')||document.querySelector('input[type=email]')).value.trim();
-        const password = (document.getElementById('password')||document.querySelector('input[type=password]')).value;
-        const { data, error } = await window.supabase.auth.signInWithPassword({ email, password });
-        if(error) return alert('로그인 실패: '+error.message);
-        alert('로그인 성공');
-        window.location.href = 'index.html';
-      }catch(err){
-        console.error(err);
-        alert('로그인 오류');
-      }
+/**
+ * 로그인 버튼 클릭 시 실행되는 함수
+ */
+async function login(){
+    if (!supabase) return alert('Supabase 클라이언트 초기화 실패');
+    
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+
+    if (!emailInput || !passwordInput) return alert('입력 필드를 찾을 수 없습니다.');
+
+    const email = emailInput.value.trim();
+    const password = passwordInput.value;
+
+    if (!email || !password) return alert('이메일과 비밀번호를 모두 입력해주세요.');
+    
+    //----------------------
+    // 🔥 로그인 실행
+    //----------------------
+    const { error } = await supabase.auth.signInWithPassword({ 
+        email, 
+        password 
     });
-  }catch(e){ console.warn('login patch fail', e); }
-})();
+
+    if(error) {
+        // 비밀번호 오류 등 구체적인 에러 메시지 표시
+        return alert("로그인 실패: " + error.message);
+    }
+    
+    alert("로그인 성공!");
+    // 로그인 성공 후 메인 페이지로 이동 (index.html)
+    location.href="index.html"; 
+}
+
+// ----------------------------------------------------
+// 💡 추가 개선: 이미 로그인되어 있다면 바로 메인으로 이동
+// ----------------------------------------------------
+document.addEventListener('DOMContentLoaded', async () => {
+    if (!supabase) return;
+    
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (session) {
+        console.log("이미 로그인된 사용자입니다. 메인 페이지로 이동합니다.");
+        location.href = "index.html";
+    }
+});
+
 </script>
 </body>
 </html>
