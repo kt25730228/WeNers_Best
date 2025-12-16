@@ -35,9 +35,14 @@ const SUPABASE_ANON_KEY_FROM_WINDOW = window.SUPABASE_ANON_KEY;
 let supabase;
 
 if (SUPABASE_URL_FROM_WINDOW && SUPABASE_ANON_KEY_FROM_WINDOW) {
-    supabase = supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
-        auth: { persistSession: false }
-    });
+    // 💥 FIX 적용: window.supabase 객체에서 createClient 함수를 명시적으로 호출합니다.
+    if (window.supabase && typeof window.supabase.createClient === 'function') {
+        supabase = window.supabase.createClient(SUPABASE_URL_FROM_WINDOW, SUPABASE_ANON_KEY_FROM_WINDOW, {
+            auth: { persistSession: false }
+        });
+    } else {
+        console.error('Supabase 라이브러리(createClient)를 찾을 수 없습니다. CDN 로드를 확인하세요.');
+    }
 } else {
     console.error('Supabase 설정 (config.js)을 확인하세요.');
 }
@@ -56,9 +61,6 @@ document.addEventListener("DOMContentLoaded", () => {
             
             if (!email || !password) return alert('이메일과 비밀번호를 모두 입력해주세요.');
 
-            //----------------------
-            // 🔥 회원가입 실행
-            //----------------------
             const { error } = await supabase.auth.signUp({
                 email, password
             });
