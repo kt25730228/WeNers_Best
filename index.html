@@ -63,11 +63,9 @@ let timerInterval = null;
 // 🔥 1. Supabase 클라이언트 초기화 함수
 function initializeSupabase() {
     if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase && typeof window.supabase.createClient === 'function') {
-        // ⭐ 수정된 부분: supabaseClient에 할당
         supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             auth: { persistSession: true, autoRefreshToken: true } 
         });
-        // window.supabase = supabaseClient; // 이 라인은 제거하여 잠재적 충돌 가능성을 완전히 없앱니다.
         return true;
     }
     console.error("Supabase 클라이언트 초기화 실패: config.js 설정 또는 라이브러리 로드 실패");
@@ -76,13 +74,11 @@ function initializeSupabase() {
 
 // 🔥 2. 인증 및 UI 관리
 async function checkAuthAndInit() {
-    // 1. 클라이언트 초기화 시도
     if (!initializeSupabase()) {
         document.getElementById('product-list').innerHTML = '<p class="col-span-full text-center py-10 text-red-500">Supabase 클라이언트 초기화 실패. config.js를 확인하세요.</p>';
         return;
     }
     
-    // 2. 현재 세션 정보를 가져와 currentUser를 설정합니다.
     // ⭐ 수정된 부분: supabaseClient 사용
     const { data: { session } } = await supabaseClient.auth.getSession(); 
     currentUser = session ? session.user : null;
@@ -93,7 +89,6 @@ async function checkAuthAndInit() {
     const userBox = document.getElementById('userBox');
     const createBtn = document.getElementById('createProductBtn');
 
-    // 3. 인증 상태에 따른 UI 업데이트
     if (currentUser) {
         if (loginBtn) loginBtn.style.display = 'none';
         if (signupBtn) signupBtn.style.display = 'none';
@@ -108,7 +103,6 @@ async function checkAuthAndInit() {
         if (createBtn) createBtn.href = 'auth_login.html'; 
     }
     
-    // 4. 상품 로드 및 타이머 시작
     loadProducts();
     
     if (timerInterval) clearInterval(timerInterval);
@@ -162,10 +156,13 @@ async function loadProducts() {
         const endTime = new Date(product.end_date);
         auctionEndDates.set(product.id, endTime);
         
+        // ⭐ 수정된 부분: placeholder.jpg 오류 방지 및 빈 이미지 처리 개선
+        const imgSrc = product.images && product.images.length > 0 ? product.images[0] : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 100 100"><rect width="100" height="100" fill="#e5e7eb"/><text x="50" y="55" font-size="12" fill="#9ca3af" text-anchor="middle">No Image</text></svg>';
+        
         return `
             <a href="detail.html?id=${product.id}" class="block bg-white rounded-xl shadow-lg hover:shadow-xl transition duration-300 overflow-hidden">
                 <div class="h-48 w-full bg-gray-200 flex items-center justify-center overflow-hidden">
-                    <img src="${product.images[0] || 'placeholder.jpg'}" alt="${product.title}" class="object-cover w-full h-full">
+                    <img src="${imgSrc}" alt="${product.title}" class="object-cover w-full h-full">
                 </div>
                 <div class="p-4">
                     <h3 class="text-lg font-bold text-gray-800 truncate">${product.title}</h3>
