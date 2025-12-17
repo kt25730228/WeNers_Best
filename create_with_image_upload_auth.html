@@ -60,6 +60,7 @@
     </div>
 
 <script>
+    // ⭐ 수정된 부분: 변수 이름 통일
     let supabaseClient = null;
     let currentUser = null;
 
@@ -71,7 +72,7 @@
             supabaseClient = window.supabase.createClient(url, key, { 
                 auth: { persistSession: true, autoRefreshToken: true } 
             });
-            window.supabase = supabaseClient;
+            // window.supabase = supabaseClient; // 제거
             return true;
         }
         return false;
@@ -129,7 +130,13 @@
         }
 
         try {
+            // ⭐ 이미지 업로드 로직 (간결성을 위해 스토리지 업로드는 생략하고 DB 등록만 예시)
             const imageUrls = []; 
+            if (files.length > 0) {
+                 // 실제 구현 시 여기에 Supabase Storage 업로드 로직을 추가해야 합니다.
+                 // 지금은 파일 목록을 이미지 URL 배열로 가정합니다.
+                 imageUrls.push('https://via.placeholder.com/600x400.png?text=' + encodeURIComponent(title));
+            }
 
             const { data, error } = await supabaseClient
                 .from('products')
@@ -139,7 +146,7 @@
                     end_date: endDate,
                     description: description,
                     
-                    // ⭐ 수정된 부분: seller_id와 creator_id에 사용자 ID 할당
+                    // ⭐ 최종 수정된 부분: seller_id와 creator_id에 사용자 ID 할당
                     seller_id: currentUser.id, 
                     creator_id: currentUser.id, 
                     
@@ -152,7 +159,7 @@
             if (error) throw error;
             
             alert(`상품 등록 성공! (ID: ${data.id})`);
-            // ⭐ 수정된 부분: 등록 후 상세 페이지로 이동
+            // ⭐ 최종 수정된 부분: 등록 후 해당 상세 페이지로 이동
             window.location.href = `detail.html?id=${data.id}`; 
 
         } catch (error) {
