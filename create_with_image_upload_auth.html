@@ -60,72 +60,51 @@
     </div>
 
 <script>
-    // ====================================================================
-    // A. 인증 및 초기화 로직 (세션 유지 및 페이지 보호)
-    // ====================================================================
-
     let supabaseClient = null;
     let currentUser = null;
 
-    // Supabase 클라이언트 초기화 함수
     function initializeSupabase() {
         const url = window.SUPABASE_URL;
         const key = window.SUPABASE_ANON_KEY;
         
         if (url && key && window.supabase && typeof window.supabase.createClient === 'function') {
-            // 핵심: persistSession: true 설정으로 세션을 유지합니다.
             supabaseClient = window.supabase.createClient(url, key, { 
                 auth: { persistSession: true, autoRefreshToken: true } 
             });
-            window.supabase = supabaseClient; // 전역 변수 업데이트
+            window.supabase = supabaseClient;
             return true;
         }
         return false;
     }
 
-    // 페이지 로드 시 인증 상태 확인 및 보호 함수
     async function checkAuthAndProtect() {
         const loadingEl = document.getElementById('loading-indicator');
         const containerEl = document.getElementById('product-registration-container');
         
-        // 1. 클라이언트 초기화 시도
         if (!initializeSupabase()) {
              loadingEl.textContent = "시스템 초기화 오류. config.js를 확인하세요.";
              return;
         }
 
-        // 2. 세션 정보를 가져옵니다.
         const { data: { session }, error } = await supabaseClient.auth.getSession();
 
         if (error || !session) {
-            // 🛑 세션이 유효하지 않으면 로그인 페이지로 이동
-            console.log("보호된 페이지 접근: 세션 없음. 로그인 페이지로 리디렉션합니다.");
+            console.log("보호된 페이지 접근: 세션 없음.");
             loadingEl.textContent = "로그인이 필요합니다. 로그인 페이지로 이동합니다...";
-            
-            // 1초 후 이동 (사용자에게 안내 메시지를 볼 시간 제공)
             setTimeout(() => {
                 window.location.href = "auth_login.html";
             }, 1000); 
-            
         } else {
-            // ✅ 세션 유효: 사용자 정보를 저장하고 페이지 내용을 표시합니다.
             currentUser = session.user;
             console.log("인증 성공. 상품 등록 페이지 로드:", currentUser.email);
             
-            loadingEl.style.display = 'none'; // 로딩 메시지 숨기기
-            containerEl.style.display = 'block'; // 폼 컨테이너 표시
+            loadingEl.style.display = 'none';
+            containerEl.style.display = 'block';
         }
     }
 
-    // ====================================================================
-    // B. 상품 등록 로직 (creator_id 오류 해결됨)
-    // ====================================================================
-
     document.addEventListener('DOMContentLoaded', () => {
-        // 1. 페이지 보호 로직 실행
         checkAuthAndProtect();
-
-        // 2. 폼 제출 이벤트 리스너 설정
         const form = document.getElementById('productForm');
         form.addEventListener('submit', handleProductSubmit);
     });
@@ -134,9 +113,9 @@
     async function handleProductSubmit(e) {
         e.preventDefault();
         
-        if (!currentUser) {
+        if (!currentUser || !supabaseClient) {
             alert('인증 상태를 확인하지 못했습니다. 다시 로그인해주세요.');
-            return window.location.href = "auth_login.html";
+            return;
         }
         
         const title = document.getElementById('title').value.trim();
@@ -150,10 +129,8 @@
         }
 
         try {
-            // 💡 이미지 업로드 로직 (간결성을 위해 스토리지 업로드는 생략하고 DB 등록만 예시)
             const imageUrls = []; 
 
-            // 1. DB에 상품 정보 등록
             const { data, error } = await supabaseClient
                 .from('products')
                 .insert([{
@@ -162,10 +139,8 @@
                     end_date: endDate,
                     description: description,
                     
-                    // ⭐ 수정됨: seller_id에 사용자 ID 할당
+                    // ⭐ 수정된 부분: seller_id와 creator_id에 사용자 ID 할당
                     seller_id: currentUser.id, 
-                    
-                    // ⭐ 수정됨: creator_id에 사용자 ID 할당 (이전 오류 해결 코드)
                     creator_id: currentUser.id, 
                     
                     images: imageUrls, 
@@ -177,8 +152,8 @@
             if (error) throw error;
             
             alert(`상품 등록 성공! (ID: ${data.id})`);
-            // 등록 후 메인 페이지로 이동
-            window.location.href = "index.html"; 
+            // ⭐ 수정된 부분: 등록 후 상세 페이지로 이동
+            window.location.href = `detail.html?id=${data.id}`; 
 
         } catch (error) {
             console.error('상품 등록 오류:', error.message);
