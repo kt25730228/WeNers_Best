@@ -43,16 +43,15 @@
 const SUPABASE_URL = window.SUPABASE_URL;
 const SUPABASE_ANON_KEY = window.SUPABASE_ANON_KEY;
 let currentUser = null;
-let supabase = null; // Supabase 클라이언트 인스턴스 변수
+// ⭐ 수정된 부분: 변수 이름을 'supabaseClient'로 통일
+let supabaseClient = null; 
 
 // 🔥 1. Supabase 클라이언트 초기화 함수
 function initializeSupabase() {
     if (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase && typeof window.supabase.createClient === 'function') {
-        supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            // ⭐ 핵심: 세션을 유지하도록 설정
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
             auth: { persistSession: true, autoRefreshToken: true } 
         });
-        window.supabase = supabase;
         return true;
     }
     console.error("Supabase 클라이언트 초기화 실패: config.js 설정 또는 라이브러리 로드 실패");
@@ -61,7 +60,6 @@ function initializeSupabase() {
 
 // 🔥 2. 페이지 초기화 및 세션 확인
 async function initializePage() {
-    // 1. 클라이언트 초기화 시도
     if (!initializeSupabase()) {
         document.getElementById('loadingContent').textContent = '시스템 오류: Supabase 설정 확인이 필요합니다.';
         return;
@@ -76,7 +74,7 @@ async function initializePage() {
     }
 
     // ⭐⭐ 세션 정보 확인 및 복원 ⭐⭐
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session ? session.user : null;
 
     // UI 업데이트 (로그인/로그아웃 버튼 상태 변경)
@@ -97,33 +95,31 @@ async function initializePage() {
         if (userBox) userBox.textContent = '';
     }
     
-    // 이후 상품 로드 로직 호출
     loadProductDetail(productId);
 }
 
 // 🔥 3. 로그아웃 함수
 async function logout() {
-    if (!supabase) return;
+    // ⭐ 수정된 부분: supabaseClient 사용
+    if (!supabaseClient) return;
     
-    const { error } = await supabase.auth.signOut();
+    const { error } = await supabaseClient.auth.signOut();
     if (error) {
         alert('로그아웃 실패: ' + error.message);
     } else {
         alert('로그아웃되었습니다.');
-        window.location.reload(); // 페이지 새로고침
+        window.location.reload(); 
     }
 }
 
-// --- (나머지 상품 상세/입찰 로직은 유지됨) ---
-
 // 상품 상세 정보 로드
 async function loadProductDetail(productId) {
-    // 상품 로드 로직
     const container = document.getElementById('product-detail-container');
     const loadingEl = document.getElementById('loadingContent');
     loadingEl.style.display = 'none';
     
-    const { data: product, error } = await supabase
+    // ⭐ 수정된 부분: supabaseClient 사용
+    const { data: product, error } = await supabaseClient
         .from('products')
         .select(`
             *,
@@ -142,16 +138,18 @@ async function loadProductDetail(productId) {
 }
 
 function displayProduct(product) {
-    // 상품 정보를 HTML에 표시하는 로직 (기존 로직 유지)
     const container = document.getElementById('product-detail-container');
-    // ... (실제 상품 정보 표시 로직)
+    
+    // ⭐ 수정된 부분: placeholder.jpg 오류 방지 및 빈 이미지 처리 개선
+    const imgSrc = product.images && product.images.length > 0 ? product.images[0] : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%" viewBox="0 0 100 100"><rect width="100" height="100" fill="#e5e7eb"/><text x="50" y="55" font-size="12" fill="#9ca3af" text-anchor="middle">No Image</text></svg>';
+
     container.innerHTML = `
         <div class="col-span-1">
             <div id="main-image-display" class="w-full h-96 bg-gray-200 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
-                <img src="${product.images[0] || 'placeholder.jpg'}" alt="${product.title}" class="object-cover w-full h-full">
+                <img src="${imgSrc}" alt="${product.title}" class="object-cover w-full h-full">
             </div>
             <div id="thumbnail-gallery" class="flex space-x-2">
-                ${product.images.map((img, index) => `
+                ${(product.images || []).map((img, index) => `
                     <img src="${img}" alt="Thumbnail ${index + 1}" class="w-16 h-16 object-cover rounded-md cursor-pointer border hover:border-blue-500 ${index === 0 ? 'active-thumb' : ''}" onclick="changeMainImage('${img}', this)">
                 `).join('')}
             </div>
